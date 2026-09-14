@@ -225,8 +225,18 @@ function decodeXmlText(value) {
 async function extractPdfText(buffer) {
   const pdfjsLib = await loadPdfjs();
   const pdfjsDistRoot = path.dirname(require.resolve("pdfjs-dist/package.json"));
-  const cMapUrl = pathToFileURL(path.join(pdfjsDistRoot, "cmaps") + path.sep).href;
-  const standardFontDataUrl = pathToFileURL(path.join(pdfjsDistRoot, "standard_fonts") + path.sep).href;
+  // NOTE: pdfjs-dist's Node fetch shim (node_utils_fetchData) passes these
+  // straight into fs.readFile(url) without wrapping the string in `new URL()`
+  // first. fs.readFile only special-cases URL *objects*, not file:// strings
+  // (a bare string is treated as a literal path), so a `pathToFileURL(...).href`
+  // string here 404s every font/cmap lookup. Plain OS paths (native separator,
+  // trailing slash) are what actually resolve correctly in Node.
+  // pdfjs-dist requires this string to end in "/" specifically (its own
+  // trailing-slash check is hardcoded to that character), so append "/"
+  // rather than path.sep -- Node's fs functions accept forward slashes in
+  // paths on Windows too, and it's a no-op on Linux/Lambda.
+  const cMapUrl = `${path.join(pdfjsDistRoot, "cmaps")}/`;
+  const standardFontDataUrl = `${path.join(pdfjsDistRoot, "standard_fonts")}/`;
 
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(buffer),
