@@ -5,3 +5,6 @@
 [dev]
   publish = "."
   functions = "netlify/functions"
+
+[functions]
+  external_node_modules = ["@napi-rs/canvas", "pdf-parse", "pdfjs-dist"]
