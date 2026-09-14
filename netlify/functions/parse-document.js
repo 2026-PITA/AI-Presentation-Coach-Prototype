@@ -1,5 +1,20 @@
 const zlib = require("zlib");
-const { PDFParse } = require("pdf-parse");
+const path = require("path");
+const { pathToFileURL } = require("url");
+
+// pdfjs-dist is used directly (not via the `pdf-parse` wrapper) so that text
+// extraction never pulls in `@napi-rs/canvas`. Canvas is only needed for
+// rendering pages to images, which this function never does. Loaded lazily
+// (and via dynamic import, since pdfjs-dist ships ESM-only) so a PDF is only
+// paid for when one is actually uploaded.
+let pdfjsLibPromise = null;
+function loadPdfjs() {
+  if (!pdfjsLibPromise) {
+    const entry = require.resolve("pdfjs-dist/legacy/build/pdf.mjs");
+    pdfjsLibPromise = import(pathToFileURL(entry).href);
+  }
+  return pdfjsLibPromise;
+}
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -208,11 +223,36 @@ function decodeXmlText(value) {
 }
 
 async function extractPdfText(buffer) {
-  const parser = new PDFParse({ data: buffer });
+  const pdfjsLib = await loadPdfjs();
+  const pdfjsDistRoot = path.dirname(require.resolve("pdfjs-dist/package.json"));
+  const cMapUrl = pathToFileURL(path.join(pdfjsDistRoot, "cmaps") + path.sep).href;
+  const standardFontDataUrl = pathToFileURL(path.join(pdfjsDistRoot, "standard_fonts") + path.sep).href;
+
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    cMapUrl,
+    cMapPacked: true,
+    standardFontDataUrl,
+    useSystemFonts: false,
+    isEvalSupported: false,
+    disableFontFace: true,
+    // No canvasFactory is provided on purpose: text extraction never renders
+    // a page, so nothing here ever needs @napi-rs/canvas or node-canvas.
+  });
+
   try {
-    const result = await parser.getText();
-    const text = (result.text || "")
-      .replace(/--\s*\d+\s*of\s*\d+\s*--/g, "")
+    const doc = await loadingTask.promise;
+    const pageTexts = [];
+
+    for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+      const page = await doc.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const pageText = content.items.map((item) => item.str || "").join("");
+      if (pageText.trim()) pageTexts.push(pageText);
+    }
+
+    const text = pageTexts
+      .join("\n\n")
       .replace(/[ \t]{2,}/g, " ")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
@@ -223,6 +263,6 @@ async function extractPdfText(buffer) {
 
     return text;
   } finally {
-    await parser.destroy();
+    await loadingTask.destroy();
   }
 }

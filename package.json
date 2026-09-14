@@ -2,6 +2,6 @@
   "name": "ai-presentation-coach-prototype",
   "private": true,
   "dependencies": {
-    "pdf-parse": "^2.4.5"
+    "pdfjs-dist": "^6.3.289"
   }
 }
