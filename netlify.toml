@@ -8,3 +8,6 @@
 
 [functions]
   external_node_modules = ["pdfjs-dist"]
+
+[build.environment]
+  AWS_LAMBDA_JS_RUNTIME = "nodejs22.x"
