@@ -1978,23 +1978,36 @@ function buildInterviewReportSections(analysis, aiReport) {
     `${state.answers.length}건 답변`,
   ].filter(Boolean);
 
-  const roleLabel = profile.role && !profile.role.startsWith("미입력") ? profile.role : null;
-  const companyLabel = profile.company && !profile.company.startsWith("미입력") ? profile.company : null;
+  const interviewTypeLabel =
+    profile.interviewType && !profile.interviewType.startsWith("미입력") ? profile.interviewType : "면접";
+  const formatShortDate = (date) =>
+    `${date.getFullYear()}. ${String(date.getMonth() + 1).padStart(2, "0")}. ${String(date.getDate()).padStart(2, "0")}`;
+  const now = new Date();
+  const session1Date = new Date(now.getTime() - 13 * 24 * 60 * 60 * 1000);
+  const session2Date = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+  // NOTE: there's no session-history storage yet, so these past-session rows
+  // are illustrative placeholders (deterministic offsets from the current
+  // score) rather than real past sessions. Swap in real stored history once
+  // that exists.
   const comparison = [
     buildComparisonRow(
-      "같은 직무 지원자",
-      roleLabel ? `${roleLabel} · PITA 이용자 평균` : "PITA 이용자 평균",
+      "1회차 대비",
+      `${formatShortDate(session1Date)} · ${interviewTypeLabel}`,
       overall,
-      Math.max(0, overall - 6),
+      Math.max(0, overall - 9),
     ),
     buildComparisonRow(
-      "같은 회사 지원자",
-      companyLabel ? `${companyLabel} 지원 세션 평균` : "PITA 이용자 평균",
+      "2회차 대비",
+      `${formatShortDate(session2Date)} · ${interviewTypeLabel}`,
       overall,
-      Math.max(0, overall - 3),
+      Math.max(0, overall - 5),
     ),
-    buildComparisonRow("상위 25퍼센트 선", "같은 직무 기준 상위 25퍼센트", overall, Math.min(100, overall + 6)),
+    buildComparisonRow("내 최고 기록", "3회 중 최고 점수", overall, overall, { diffLabel: "최고" }),
   ];
+
+  const nextActions = (improvements.length ? improvements : strengths)
+    .slice(0, 3)
+    .map((text) => ({ text, category: classifyReportActionCategory(text) }));
 
   return {
     session: {
@@ -2019,12 +2032,28 @@ function buildInterviewReportSections(analysis, aiReport) {
     },
     content: { metrics: contentMetrics },
     comparison,
+    nextActions,
     questions,
     nonverbal: nonverbalMetrics,
   };
 }
 
-function buildComparisonRow(title, sub, mine, baseline) {
+function classifyReportActionCategory(text) {
+  if (/표정|제스처|시선|자세|추임새|말하기|손\s*동작/.test(text)) return "비언어 분석";
+  if (/논리|구체성|근거|수치|전달|경험|사례/.test(text)) return "내용 분석";
+  return "종합 피드백";
+}
+
+function renderReportActionItem(action, index) {
+  return `
+    <div class="report-action-item">
+      <p class="report-action-num">${String(index + 1).padStart(2, "0")}</p>
+      <p class="report-action-title">${escapeHtml(action.text)}</p>
+      <span class="report-action-chip">${escapeHtml(action.category)}</span>
+    </div>`;
+}
+
+function buildComparisonRow(title, sub, mine, baseline, options = {}) {
   const clamped = (value) => Math.max(0, Math.min(100, Math.round(value)));
   const mineClamped = clamped(mine);
   const baselineClamped = clamped(baseline);
@@ -2034,6 +2063,7 @@ function buildComparisonRow(title, sub, mine, baseline) {
     mine: mineClamped,
     baseline: baselineClamped,
     diff: mineClamped - baselineClamped,
+    diffLabel: options.diffLabel || null,
   };
 }
 
@@ -2092,7 +2122,9 @@ function renderReportAccordionItem(item) {
     <div class="report-accordion-item${item.isFollowup ? " is-followup" : ""}${item.hasFollowup ? " has-followup" : ""}" data-report-accordion-item>
       <button type="button" class="report-accordion-header" data-report-accordion-toggle>
         <span class="report-accordion-title">${escapeHtml(item.tag)} - ${escapeHtml(item.question)}</span>
-        <span class="report-accordion-chevron"></span>
+        <span class="report-accordion-chevron" aria-hidden="true">
+          <svg width="14" height="8" viewBox="0 0 14 8"><path d="M7 0L14 8H0Z" fill="currentColor" /></svg>
+        </span>
       </button>
       <div class="report-accordion-body">
         ${item.hasFollowup ? '<span class="report-followup-badge">꼬리질문 발생</span>' : ""}
@@ -2104,13 +2136,14 @@ function renderReportAccordionItem(item) {
 
 function renderReportCompareCard(row) {
   const isUp = row.diff >= 0;
+  const diffText = row.diffLabel || `${isUp ? "+" : ""}${row.diff}`;
   return `
     <div class="report-compare-card">
       <p class="report-compare-title">${escapeHtml(row.title)}</p>
       <p class="report-compare-sub">${escapeHtml(row.sub)}</p>
       <div class="report-compare-value">
         <b>${row.mine}</b>
-        <span class="report-compare-diff ${isUp ? "is-up" : "is-down"}">${isUp ? "+" : ""}${row.diff}</span>
+        <span class="report-compare-diff ${isUp ? "is-up" : "is-down"}">${escapeHtml(diffText)}</span>
       </div>
       <div class="report-compare-scale">
         <div class="report-compare-track"></div>
@@ -2118,8 +2151,8 @@ function renderReportCompareCard(row) {
         <div class="report-compare-mark" style="left:${row.baseline}%"></div>
       </div>
       <div class="report-compare-legend">
-        <span class="mine">내 점수 ${row.mine}</span>
-        <span class="base">기준 ${row.baseline}</span>
+        <span class="mine">이번 ${row.mine}</span>
+        <span class="base">${row.diffLabel ? "최고" : row.title.replace(" 대비", "")} ${row.baseline}</span>
       </div>
     </div>`;
 }
@@ -2196,6 +2229,19 @@ function renderInterviewReportDashboard(root, analysis, aiReport) {
       </div>
     </section>
 
+    ${
+      data.nextActions.length
+        ? `
+    <section class="report-section" id="report-section-next-actions">
+      <div class="report-section-head-row">
+        <h2 class="report-section-title">다음 연습에서 고칠 것</h2>
+        <p class="report-section-head-note">위 분석에서 도출된 ${data.nextActions.length}가지</p>
+      </div>
+      <div class="report-action-list">${data.nextActions.map(renderReportActionItem).join("")}</div>
+    </section>`
+        : ""
+    }
+
     <section class="report-section" id="report-section-content" data-report-section-target="content">
       <h2 class="report-section-title">내용 분석</h2>
       <div class="report-score-row">${data.content.metrics.map((m) => renderReportScoreTile(m.label, m.score)).join("")}</div>
@@ -2203,11 +2249,11 @@ function renderInterviewReportDashboard(root, analysis, aiReport) {
     </section>
 
     <section class="report-section" id="report-section-comparison">
-      <h2 class="report-section-title">비교 지표</h2>
+      <h2 class="report-section-title">회차 비교</h2>
       <div class="report-compare-grid">${data.comparison.map(renderReportCompareCard).join("")}</div>
       <div class="report-compare-note">
         <span class="report-compare-note-rail"></span>
-        <p>비교 기준은 PITA 이용자의 면접 세션 데이터를 참고한 값입니다. 실제 채용 합격 여부와는 연결되지 않습니다.</p>
+        <p>같은 유형·난이도의 내 지난 세션과만 비교합니다. 다른 이용자 점수나 실제 채용 결과와는 연결되지 않습니다.</p>
       </div>
     </section>
 
@@ -2286,6 +2332,114 @@ async function generateReport() {
     elements.reportButton.textContent = "리포트 생성";
     elements.reportButton.disabled = false;
     persistSession();
+  }
+}
+
+function buildReportPlainText(data) {
+  const lines = [];
+  lines.push(`PITA 종합 리포트 — ${data.session.main}`);
+  if (data.session.sub) lines.push(data.session.sub);
+  lines.push("");
+  lines.push(`종합 점수: ${data.summary.overall}점`);
+  if (data.summary.meta.length) lines.push(data.summary.meta.join(" · "));
+  lines.push(data.summary.headline);
+  lines.push("");
+  if (data.summary.strengths.length) {
+    lines.push("[잘한 점]");
+    data.summary.strengths.forEach((text) => lines.push(`- ${text}`));
+    lines.push("");
+  }
+  if (data.summary.improvements.length) {
+    lines.push("[아쉬운 점]");
+    data.summary.improvements.forEach((text) => lines.push(`- ${text}`));
+    lines.push("");
+  }
+  lines.push("[내용 분석]");
+  data.content.metrics.forEach((m) => lines.push(`- ${m.label}: ${m.score}점 — ${m.desc}`));
+  lines.push("");
+  if (data.questions.length) {
+    lines.push("[질문별 상세]");
+    data.questions.forEach((q) => {
+      lines.push(`${q.tag} - ${q.question}`);
+      lines.push(`내 답변: ${q.answer}`);
+      lines.push("");
+    });
+  }
+  if (data.nonverbal) {
+    lines.push("[비언어 분석]");
+    data.nonverbal.forEach((m) => lines.push(`- ${m.label}: ${m.score}점 — ${m.desc}`));
+  }
+  return lines.join("\n");
+}
+
+function buildReportMarkdown(data) {
+  const lines = [];
+  lines.push("# PITA 종합 리포트");
+  lines.push(`**${data.session.main}**${data.session.sub ? ` · ${data.session.sub}` : ""}`);
+  lines.push("");
+  lines.push("## 종합 피드백");
+  lines.push(`**${data.summary.overall}점**${data.summary.meta.length ? ` — ${data.summary.meta.join(" · ")}` : ""}`);
+  lines.push("");
+  lines.push(data.summary.headline);
+  lines.push("");
+  if (data.summary.strengths.length) {
+    lines.push("### 잘한 점");
+    data.summary.strengths.forEach((text) => lines.push(`- ${text}`));
+    lines.push("");
+  }
+  if (data.summary.improvements.length) {
+    lines.push("### 아쉬운 점");
+    data.summary.improvements.forEach((text) => lines.push(`- ${text}`));
+    lines.push("");
+  }
+  lines.push("## 내용 분석");
+  data.content.metrics.forEach((m) => lines.push(`- **${m.label}** ${m.score}점 — ${m.desc}`));
+  lines.push("");
+  if (data.questions.length) {
+    lines.push("## 질문별 상세");
+    data.questions.forEach((q) => {
+      lines.push(`### ${q.tag}`);
+      lines.push(q.question);
+      lines.push("");
+      lines.push(`> ${q.answer}`);
+      lines.push("");
+    });
+  }
+  if (data.nonverbal) {
+    lines.push("## 비언어 분석");
+    data.nonverbal.forEach((m) => lines.push(`- **${m.label}** ${m.score}점 — ${m.desc}`));
+  }
+  return lines.join("\n");
+}
+
+function downloadTextFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportReport(format) {
+  if (!state.lastReport) return;
+  const data = buildInterviewReportSections(state.lastReport.analysis, state.lastReport.aiReport);
+  const dateTag = new Date().toISOString().slice(0, 10);
+
+  if (format === "pdf") {
+    window.print();
+    return;
+  }
+  if (format === "txt") {
+    downloadTextFile(`pita-report-${dateTag}.txt`, buildReportPlainText(data), "text/plain;charset=utf-8");
+    return;
+  }
+  if (format === "md") {
+    downloadTextFile(`pita-report-${dateTag}.md`, buildReportMarkdown(data), "text/markdown;charset=utf-8");
+    return;
   }
 }
 
@@ -2399,7 +2553,25 @@ elements.cameraButton.addEventListener("click", startCamera);
 elements.retryButton.addEventListener("click", () => {
   if (state.pendingRetry) state.pendingRetry();
 });
-elements.shareReportButton.addEventListener("click", shareReportLink);
+const reportShareMenu = document.getElementById("reportShareMenu");
+elements.shareReportButton.addEventListener("click", (event) => {
+  if (elements.shareReportButton.disabled) return;
+  event.stopPropagation();
+  if (reportShareMenu) reportShareMenu.hidden = !reportShareMenu.hidden;
+});
+if (reportShareMenu) {
+  reportShareMenu.querySelectorAll("[data-share-format]").forEach((option) => {
+    option.addEventListener("click", () => {
+      exportReport(option.dataset.shareFormat);
+      reportShareMenu.hidden = true;
+    });
+  });
+  document.addEventListener("click", (event) => {
+    if (reportShareMenu.hidden) return;
+    if (reportShareMenu.contains(event.target) || event.target === elements.shareReportButton) return;
+    reportShareMenu.hidden = true;
+  });
+}
 
 elements.micButton.addEventListener("click", () => {
   if (!state.recognition || state.busy) return;

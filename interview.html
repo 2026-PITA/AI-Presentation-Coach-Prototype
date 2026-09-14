@@ -6,50 +6,84 @@
     <title>PITA · Presentation & Interview Teaching Assistant</title>
     <link rel="stylesheet" href="./assets/css/app.css" />
     <style>
-      .app-topbar {
+      body.interview-app {
+        display: flex;
+        align-items: flex-start;
+      }
+      .app-sidebar {
         position: sticky;
         top: 0;
-        z-index: 40;
-        height: 87px;
+        align-self: flex-start;
+        flex: 0 0 260px;
+        width: 260px;
+        height: 100vh;
+        overflow-y: auto;
+        box-sizing: border-box;
         display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 0 max(24px, calc(50% - 612px));
-        background: #252525;
+        flex-direction: column;
+        gap: 36px;
+        padding: 40px 28px;
+        background: #1c1c1c;
+        border-right: 1px solid #474747;
+        z-index: 40;
       }
-      .app-topbar-logo {
-        flex: 0 0 auto;
+      body.report-dashboard-active .app-sidebar {
+        display: none;
+      }
+      .app-sidebar-logo {
+        display: block;
         color: var(--pita-cyan);
         font-family: "ChangwonDangamAsac", Impact, "Arial Black", sans-serif;
-        font-size: 48px;
+        font-size: 40px;
         font-weight: 700;
-        letter-spacing: 0.12em;
+        letter-spacing: 0.1em;
+        text-align: center;
         text-decoration: none;
       }
-      .app-topbar-steps {
-        flex: 1 1 auto;
+      .app-sidebar-session {
         display: flex;
-        align-items: center;
-        justify-content: center;
+        flex-direction: column;
+        gap: 8px;
+        padding: 16px 18px;
+        border-radius: 12px;
+        background: #363636;
+      }
+      .app-sidebar-session[hidden] {
+        display: none;
+      }
+      .app-sidebar-session-label {
+        margin: 0;
+        color: #858585;
+        font-size: 13px;
+      }
+      .app-sidebar-session-main {
+        margin: 0;
+        color: #d9d9d9;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .app-sidebar-session-sub {
+        margin: 0;
+        color: #858585;
+        font-size: 12px;
+      }
+      .app-sidebar-steps {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
         list-style: none;
         margin: 0;
         padding: 0;
-        overflow-x: auto;
-        scrollbar-width: none;
       }
-      .app-topbar-steps::-webkit-scrollbar {
-        display: none;
-      }
-      .app-topbar-step {
+      .app-sidebar-step {
         display: flex;
-        flex: 0 0 auto;
         align-items: center;
-        gap: 8px;
-        padding: 7px 12px;
-        border-radius: 16px;
-        white-space: nowrap;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 10px;
+        transition: background 0.2s;
       }
-      .app-topbar-step-badge {
+      .app-sidebar-step-badge {
         display: flex;
         flex: 0 0 auto;
         align-items: center;
@@ -57,42 +91,70 @@
         width: 22px;
         height: 22px;
         border-radius: 11px;
-        background: #4d4d4d;
-        color: #7a7a7a;
+        background: #474747;
+        color: #858585;
         font-size: 12px;
         font-weight: 700;
         transition: background 0.2s, color 0.2s;
       }
-      .app-topbar-step-label {
-        font-size: 15px;
+      .app-sidebar-step-label {
+        font-size: 16px;
         font-weight: 500;
-        color: #7a7a7a;
+        color: #858585;
         transition: color 0.2s;
       }
-      .app-topbar-sep {
-        flex: 0 0 auto;
-        width: 28px;
-        height: 1px;
-        background: #474747;
-        transition: background 0.2s;
-      }
-      .app-topbar-step.is-done .app-topbar-step-badge,
-      .app-topbar-step.is-current .app-topbar-step-badge {
+      .app-sidebar-step.is-done .app-sidebar-step-badge,
+      .app-sidebar-step.is-current .app-sidebar-step-badge {
         background: var(--pita-cyan);
         color: #121212;
       }
-      .app-topbar-step.is-done .app-topbar-step-label {
+      .app-sidebar-step.is-done .app-sidebar-step-label {
         color: #d9d9d9;
       }
-      .app-topbar-step.is-current {
+      .app-sidebar-step.is-current {
         background: rgba(0, 255, 255, 0.14);
       }
-      .app-topbar-step.is-current .app-topbar-step-label {
+      .app-sidebar-step.is-current .app-sidebar-step-label {
         color: var(--pita-cyan);
         font-weight: 700;
       }
-      .app-topbar-sep.is-done {
-        background: var(--pita-cyan);
+      .interview-app .flow-shell {
+        width: auto;
+        flex: 1 1 0;
+        min-width: 0;
+        margin: 0;
+      }
+      @media (max-width: 900px) {
+        body.interview-app {
+          display: block;
+        }
+        .app-sidebar {
+          position: static;
+          width: 100%;
+          height: auto;
+          overflow-y: visible;
+          flex-direction: row;
+          align-items: center;
+          gap: 16px;
+          border-right: 0;
+          border-bottom: 1px solid #474747;
+        }
+        .app-sidebar-logo {
+          flex: 0 0 auto;
+          font-size: 30px;
+        }
+        .app-sidebar-session {
+          flex: 1 1 0;
+          min-width: 0;
+        }
+        .app-sidebar-steps {
+          flex-direction: row;
+          overflow-x: auto;
+        }
+        .app-sidebar-step {
+          flex: 0 0 auto;
+          white-space: nowrap;
+        }
       }
       .interview-app #apiNotice {
         position: fixed;
@@ -1297,12 +1359,18 @@
         gap: 10px;
       }
       .interview-app [data-screen="interview-report"] .report-accordion-item {
+        border: 1px solid transparent;
         border-radius: 12px;
         background: #363636;
         overflow: hidden;
+        transition: background 0.16s, border-color 0.16s;
       }
       .interview-app [data-screen="interview-report"] .report-accordion-item.has-followup {
         box-shadow: inset 3px 0 0 var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-item.is-open {
+        background: #2a2a2a;
+        border-color: var(--pita-cyan);
       }
       .interview-app [data-screen="interview-report"] .report-accordion-header {
         display: flex;
@@ -1335,19 +1403,15 @@
         white-space: normal;
       }
       .interview-app [data-screen="interview-report"] .report-accordion-chevron {
+        display: inline-flex;
         flex: 0 0 auto;
-        width: 12px;
-        height: 8px;
-        border: solid #858585;
-        border-width: 0 2px 2px 0;
-        transform: rotate(45deg);
-        transition: transform 0.16s;
-        margin-bottom: 4px;
+        color: #858585;
+        transform: rotate(180deg);
+        transition: transform 0.16s, color 0.16s;
       }
       .interview-app [data-screen="interview-report"] .report-accordion-item.is-open .report-accordion-chevron {
-        transform: rotate(-135deg);
-        border-color: var(--pita-cyan);
-        margin-bottom: 0;
+        transform: rotate(0deg);
+        color: var(--pita-cyan);
       }
       .interview-app [data-screen="interview-report"] .report-accordion-body {
         display: none;
@@ -1427,6 +1491,50 @@
         border: 0;
         background: var(--pita-cyan);
         color: #121212;
+      }
+      .interview-app [data-screen="interview-report"] .report-share-wrap {
+        position: relative;
+      }
+      .interview-app [data-screen="interview-report"] .report-share-menu {
+        position: absolute;
+        bottom: calc(100% + 10px);
+        right: 0;
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 260px;
+        padding: 10px;
+        border: 1px solid #474747;
+        border-radius: 14px;
+        background: #303030;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+      }
+      .interview-app [data-screen="interview-report"] .report-share-menu[hidden] {
+        display: none;
+      }
+      .interview-app [data-screen="interview-report"] .report-share-option {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 12px 16px;
+        border: 0;
+        border-radius: 10px;
+        background: none;
+        text-align: left;
+        cursor: pointer;
+      }
+      .interview-app [data-screen="interview-report"] .report-share-option:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .interview-app [data-screen="interview-report"] .report-share-option-title {
+        color: #d9d9d9;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-share-option-sub {
+        color: #858585;
+        font-size: 12px;
       }
       .interview-app [data-screen="interview-report"] .report-compare-grid {
         display: grid;
@@ -1538,6 +1646,64 @@
         font-size: 13px;
         line-height: 1.5;
       }
+      .interview-app [data-screen="interview-report"] .report-section-head-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+      }
+      .interview-app [data-screen="interview-report"] .report-section-head-note {
+        margin: 0;
+        color: #858585;
+        font-size: 14px;
+        white-space: nowrap;
+      }
+      .interview-app [data-screen="interview-report"] .report-action-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 100%;
+      }
+      .interview-app [data-screen="interview-report"] .report-action-item {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 22px 28px;
+        border-radius: 16px;
+        background: #2a2a2a;
+      }
+      .interview-app [data-screen="interview-report"] .report-action-num {
+        flex: 0 0 auto;
+        margin: 0;
+        color: #ffb847;
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-action-title {
+        flex: 1 1 0;
+        min-width: 0;
+        margin: 0;
+        color: #fff;
+        font-size: 17px;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+      .interview-app [data-screen="interview-report"] .report-action-chip {
+        flex: 0 0 auto;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: #363636;
+        color: #858585;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      @media (max-width: 720px) {
+        .interview-app [data-screen="interview-report"] .report-action-item {
+          flex-wrap: wrap;
+        }
+      }
       @media (max-width: 1100px) {
         .interview-app [data-screen="interview-report"] .report-shell {
           flex-direction: column;
@@ -1610,35 +1776,36 @@
     </style>
   </head>
   <body class="flow-app interview-app">
-    <header class="app-topbar">
-      <a class="app-topbar-logo" href="./index.html" aria-label="PITA">PITA</a>
-      <ol class="app-topbar-steps" id="app-topbar-steps">
-        <li class="app-topbar-step" data-topbar-step="1">
-          <span class="app-topbar-step-badge">1</span>
-          <span class="app-topbar-step-label">정보 입력</span>
+    <aside class="app-sidebar" id="app-sidebar">
+      <a class="app-sidebar-logo" href="./index.html" aria-label="PITA">PITA</a>
+      <div class="app-sidebar-session" id="app-sidebar-session" hidden>
+        <p class="app-sidebar-session-label">세션</p>
+        <p class="app-sidebar-session-main" id="app-sidebar-session-main">-</p>
+        <p class="app-sidebar-session-sub" id="app-sidebar-session-sub">-</p>
+      </div>
+      <ol class="app-sidebar-steps" id="app-sidebar-steps">
+        <li class="app-sidebar-step" data-topbar-step="1">
+          <span class="app-sidebar-step-badge">1</span>
+          <span class="app-sidebar-step-label">정보 입력</span>
         </li>
-        <li class="app-topbar-sep" data-topbar-sep="1"></li>
-        <li class="app-topbar-step" data-topbar-step="2">
-          <span class="app-topbar-step-badge">2</span>
-          <span class="app-topbar-step-label">면접 설정</span>
+        <li class="app-sidebar-step" data-topbar-step="2">
+          <span class="app-sidebar-step-badge">2</span>
+          <span class="app-sidebar-step-label">면접 설정</span>
         </li>
-        <li class="app-topbar-sep" data-topbar-sep="2"></li>
-        <li class="app-topbar-step" data-topbar-step="3">
-          <span class="app-topbar-step-badge">3</span>
-          <span class="app-topbar-step-label">예상 질문</span>
+        <li class="app-sidebar-step" data-topbar-step="3">
+          <span class="app-sidebar-step-badge">3</span>
+          <span class="app-sidebar-step-label">예상 질문</span>
         </li>
-        <li class="app-topbar-sep" data-topbar-sep="3"></li>
-        <li class="app-topbar-step" data-topbar-step="4">
-          <span class="app-topbar-step-badge">4</span>
-          <span class="app-topbar-step-label">모의면접</span>
+        <li class="app-sidebar-step" data-topbar-step="4">
+          <span class="app-sidebar-step-badge">4</span>
+          <span class="app-sidebar-step-label">모의 면접</span>
         </li>
-        <li class="app-topbar-sep" data-topbar-sep="4"></li>
-        <li class="app-topbar-step" data-topbar-step="5">
-          <span class="app-topbar-step-badge">5</span>
-          <span class="app-topbar-step-label">리포트</span>
+        <li class="app-sidebar-step" data-topbar-step="5">
+          <span class="app-sidebar-step-badge">5</span>
+          <span class="app-sidebar-step-label">리포트</span>
         </li>
       </ol>
-    </header>
+    </aside>
     <main class="flow-shell">
       <div class="flow-status" id="connectionPill">
         <span class="status-dot" aria-hidden="true"></span>
@@ -2016,6 +2183,28 @@
                 <p class="report-session-sub" id="reportSessionSub">-</p>
               </div>
             </div>
+            <ol class="app-sidebar-steps" id="report-sidebar-steps">
+              <li class="app-sidebar-step" data-topbar-step="1">
+                <span class="app-sidebar-step-badge">1</span>
+                <span class="app-sidebar-step-label">정보 입력</span>
+              </li>
+              <li class="app-sidebar-step" data-topbar-step="2">
+                <span class="app-sidebar-step-badge">2</span>
+                <span class="app-sidebar-step-label">면접 설정</span>
+              </li>
+              <li class="app-sidebar-step" data-topbar-step="3">
+                <span class="app-sidebar-step-badge">3</span>
+                <span class="app-sidebar-step-label">예상 질문</span>
+              </li>
+              <li class="app-sidebar-step" data-topbar-step="4">
+                <span class="app-sidebar-step-badge">4</span>
+                <span class="app-sidebar-step-label">모의 면접</span>
+              </li>
+              <li class="app-sidebar-step" data-topbar-step="5">
+                <span class="app-sidebar-step-badge">5</span>
+                <span class="app-sidebar-step-label">리포트</span>
+              </li>
+            </ol>
             <nav class="report-section-nav" id="reportSectionNav">
               <button type="button" class="report-nav-item is-active" data-report-section="summary">
                 <span class="report-nav-mark"></span>종합 피드백
@@ -2038,7 +2227,23 @@
             <div class="report-bottom-bar">
               <p class="report-bottom-note">세션은 새로고침하면 사라집니다. 리포트를 저장해 두는 편이 좋습니다.</p>
               <div class="report-bottom-actions">
-                <button id="shareReportButton" type="button" class="report-btn report-btn-ghost" disabled>공유하기</button>
+                <div class="report-share-wrap">
+                  <button id="shareReportButton" type="button" class="report-btn report-btn-ghost" disabled>공유하기</button>
+                  <div class="report-share-menu" id="reportShareMenu" hidden>
+                    <button type="button" class="report-share-option" data-share-format="pdf">
+                      <span class="report-share-option-title">PDF로 저장</span>
+                      <span class="report-share-option-sub">인쇄와 제출에 적합해요</span>
+                    </button>
+                    <button type="button" class="report-share-option" data-share-format="txt">
+                      <span class="report-share-option-title">텍스트(.txt)로 저장</span>
+                      <span class="report-share-option-sub">답변 원문만 담겨요</span>
+                    </button>
+                    <button type="button" class="report-share-option" data-share-format="md">
+                      <span class="report-share-option-title">마크다운(.md)로 저장</span>
+                      <span class="report-share-option-sub">노션 등에 붙여 넣기 좋아요</span>
+                    </button>
+                  </div>
+                </div>
                 <button id="interview-restart" type="button" class="report-btn report-btn-primary">다시 연습하기</button>
               </div>
             </div>

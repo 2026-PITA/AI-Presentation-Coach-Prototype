@@ -23,26 +23,48 @@ const TOPBAR_STEP_MAP = {
   "interview-upload": 1,
   "interview-job": 1,
   "interview-setup": 2,
+  "questions-loading": 2,
   "interview-ready": 3,
-  "questions-loading": 3,
   "questions-report": 3,
   "interview-practice": 4,
-  "interview-loading": 5,
+  "interview-loading": 4,
   "interview-report": 5,
 };
 
 function updateTopbarSteps(name) {
   const currentStep = TOPBAR_STEP_MAP[name];
   if (!currentStep) return;
-  document.querySelectorAll(".app-topbar-step").forEach((el) => {
+  document.querySelectorAll(".app-sidebar-step").forEach((el) => {
     const step = Number(el.dataset.topbarStep);
     el.classList.toggle("is-done", step < currentStep);
     el.classList.toggle("is-current", step === currentStep);
   });
-  document.querySelectorAll(".app-topbar-sep").forEach((el) => {
-    const sep = Number(el.dataset.topbarSep);
-    el.classList.toggle("is-done", sep < currentStep);
-  });
+}
+
+function updateSidebarSession() {
+  const session = document.getElementById("app-sidebar-session");
+  const mainEl = document.getElementById("app-sidebar-session-main");
+  const subEl = document.getElementById("app-sidebar-session-sub");
+  if (!session || !mainEl || !subEl) return;
+
+  const profile = getProfile();
+  const hasCompany = profile.company && !profile.company.startsWith("미입력");
+  const hasRole = profile.role && !profile.role.startsWith("미입력");
+  if (!hasCompany && !hasRole) {
+    session.hidden = true;
+    return;
+  }
+
+  session.hidden = false;
+  mainEl.textContent =
+    [hasCompany ? profile.company : null, hasRole ? profile.role : null].filter(Boolean).join(" | ") || "-";
+  const depthValue = Number(depthInput.value);
+  const subParts = [
+    interviewTypeSelect.value ? profile.interviewType : null,
+    depthValue ? `강도 ${depthValue}` : null,
+    state.expectedQuestions?.length ? `${state.expectedQuestions.length}문항` : null,
+  ].filter(Boolean);
+  subEl.textContent = subParts.join(" | ") || "-";
 }
 
 function showInterviewScreen(name) {
@@ -51,6 +73,7 @@ function showInterviewScreen(name) {
   });
 
   updateTopbarSteps(name);
+  updateSidebarSession();
   document.body.classList.toggle("report-dashboard-active", name === "interview-report");
 
   if (name === "interview-ready") {
@@ -337,6 +360,7 @@ updateInterviewJobNext();
 
 interviewTypeSelect.addEventListener("change", () => {
   interviewSetupNext.disabled = !interviewTypeSelect.value;
+  updateSidebarSession();
   persistSession();
 });
 
