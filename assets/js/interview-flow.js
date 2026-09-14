@@ -5,54 +5,66 @@ const interviewBranchButtons = [...document.querySelectorAll("[data-interview-br
 const interviewPersonaSelect = document.getElementById("personaInput");
 const interviewReportButton = document.getElementById("reportButton");
 const interviewResumeFile = document.getElementById("resumeFile");
-const interviewUploadBox = document.querySelector('[data-screen="interview-upload"] .upload-box');
+const interviewUploadBox = document.getElementById("interview-upload-dropzone");
+const interviewDropZone = document.getElementById("interview-drop-zone");
+const interviewUploadTrigger = document.getElementById("interview-upload-trigger");
 const interviewFileList = document.getElementById("interview-file-list");
-const interviewCompanySection = document.getElementById("interview-company-section");
-const companyInfoInput = document.getElementById("companyInfoInput");
-const interviewRoleInput = document.getElementById("roleInput");
-const interviewRolePresetButtons = [...document.querySelectorAll("[data-role-preset]")];
-const interviewCompanyInput = document.getElementById("companyInput");
-const interviewTalentInput = document.getElementById("talentInput");
-const interviewPersonaCards = [...document.querySelectorAll("[data-interview-persona]")];
-const interviewPersonaNext = document.getElementById("interview-persona-next");
+const interviewJobNext = document.getElementById("interview-job-next");
+const interviewTypeCards = [...document.querySelectorAll("[data-interview-type-value]")];
+const depthInput = document.getElementById("depthInput");
+const depthTrackFill = document.getElementById("depth-track-fill");
+const depthTicks = [...document.querySelectorAll("[data-depth-value]")];
 
 const MAX_FILES = 3;
 let fileTransfer = new DataTransfer();
 let interviewBranch = "questions";
-let interviewCheckStream = null;
+
+const TOPBAR_STEP_MAP = {
+  "interview-upload": 1,
+  "interview-job": 1,
+  "interview-setup": 2,
+  "interview-ready": 3,
+  "questions-loading": 3,
+  "questions-report": 3,
+  "interview-practice": 4,
+  "interview-loading": 5,
+  "interview-report": 5,
+};
+
+function updateTopbarSteps(name) {
+  const currentStep = TOPBAR_STEP_MAP[name];
+  if (!currentStep) return;
+  document.querySelectorAll(".app-topbar-step").forEach((el) => {
+    const step = Number(el.dataset.topbarStep);
+    el.classList.toggle("is-done", step < currentStep);
+    el.classList.toggle("is-current", step === currentStep);
+  });
+  document.querySelectorAll(".app-topbar-sep").forEach((el) => {
+    const sep = Number(el.dataset.topbarSep);
+    el.classList.toggle("is-done", sep < currentStep);
+  });
+}
 
 function showInterviewScreen(name) {
   interviewScreens.forEach((screen) => {
     screen.classList.toggle("is-active", screen.dataset.screen === name);
   });
 
+  updateTopbarSteps(name);
   document.body.classList.toggle("report-dashboard-active", name === "interview-report");
 
-  if (name !== "interview-environment") {
-    stopInterviewCheckCamera();
-  }
-
-  if (name === "interview-environment") {
-    startInterviewCheckCamera();
+  if (name === "interview-ready") {
+    renderInterviewReadySummary();
   }
 
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
+updateTopbarSteps("interview-upload");
+
 document.querySelectorAll("[data-go]").forEach((button) => {
   button.addEventListener("click", () => showInterviewScreen(button.dataset.go));
 });
-
-// 업로드 화면 → 직무 화면 이동 시 company info를 talentInput에 반영
-const uploadNextBtn = document.querySelector('[data-screen="interview-upload"] [data-go="interview-job"]');
-if (uploadNextBtn) {
-  uploadNextBtn.addEventListener("click", () => {
-    const info = companyInfoInput?.value.trim();
-    if (info && interviewTalentInput && !interviewTalentInput.value.trim()) {
-      interviewTalentInput.value = info;
-    }
-  }, { capture: true });
-}
 
 function renderInterviewFiles() {
   const count = fileTransfer.files.length;
@@ -60,7 +72,6 @@ function renderInterviewFiles() {
 
   interviewUploadBox.hidden = hasFiles;
   interviewFileList.hidden = !hasFiles;
-  if (interviewCompanySection) interviewCompanySection.hidden = !hasFiles;
 
   const rowsContainer = document.getElementById("interview-file-rows");
   const addLabel = document.getElementById("interview-file-add");
@@ -70,11 +81,11 @@ function renderInterviewFiles() {
       (file, i) => `
       <div class="uploaded-file-row">
         <span>
-          <img src="./assets/images/icon-link.svg" alt="" />
+          <img src="./assets/images/icon-article.svg" alt="" />
           <span>${escapeFlowHtml(file.name)}</span>
         </span>
         <button type="button" data-remove-index="${i}" aria-label="첨부 파일 삭제">
-          <img src="./assets/images/icon-cancel.svg" alt="" />
+          <img src="./assets/images/icon-folder.svg" alt="" />
         </button>
       </div>
     `,
@@ -95,68 +106,278 @@ function renderInterviewFiles() {
       renderInterviewFiles();
     });
   });
+
+  renderInterviewJobFilePreview();
 }
 
-interviewResumeFile.addEventListener("change", () => {
-  Array.from(interviewResumeFile.files).forEach((file) => {
+function renderInterviewJobFilePreview() {
+  const preview = document.getElementById("interview-job-file-preview");
+  const rows = document.getElementById("interview-job-file-rows");
+  if (!preview || !rows) return;
+
+  const hasFiles = fileTransfer.files.length > 0;
+  preview.hidden = !hasFiles;
+
+  rows.innerHTML = Array.from(fileTransfer.files)
+    .map(
+      (file) => `
+      <div class="uploaded-file-row">
+        <span>
+          <img src="./assets/images/icon-article.svg" alt="" />
+          <span>${escapeFlowHtml(file.name)}</span>
+        </span>
+        <button type="button" tabindex="-1" aria-hidden="true">
+          <img src="./assets/images/icon-folder.svg" alt="" />
+        </button>
+      </div>
+    `,
+    )
+    .join("");
+}
+
+function addInterviewFiles(files) {
+  Array.from(files).forEach((file) => {
     if (fileTransfer.files.length < MAX_FILES) {
       fileTransfer.items.add(file);
     }
   });
   interviewResumeFile.files = fileTransfer.files;
   renderInterviewFiles();
+}
+
+interviewResumeFile.addEventListener("change", () => {
+  addInterviewFiles(interviewResumeFile.files);
+});
+
+interviewUploadTrigger.addEventListener("click", () => interviewResumeFile.click());
+interviewDropZone.addEventListener("click", () => interviewResumeFile.click());
+
+["dragenter", "dragover"].forEach((eventName) => {
+  interviewDropZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    interviewDropZone.classList.add("is-dragover");
+  });
+});
+
+["dragleave", "dragend"].forEach((eventName) => {
+  interviewDropZone.addEventListener(eventName, () => {
+    interviewDropZone.classList.remove("is-dragover");
+  });
+});
+
+interviewDropZone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  interviewDropZone.classList.remove("is-dragover");
+  if (event.dataTransfer?.files?.length) {
+    addInterviewFiles(event.dataTransfer.files);
+  }
 });
 
 renderInterviewFiles();
 
-function syncRolePresetSelection() {
-  const value = interviewRoleInput.value.trim();
-  interviewRolePresetButtons.forEach((button) => {
-    button.classList.toggle("is-selected", button.dataset.rolePreset === value);
-  });
+function updateInterviewJobNext() {
+  const company = document.getElementById("companyInput")?.value.trim();
+  const role = document.getElementById("roleInput")?.value.trim();
+  if (interviewJobNext) interviewJobNext.disabled = !(company && role);
 }
 
-const CIVIL_SERVANT_TALENT =
-  "공직가치관(청렴·봉사정신·책임감·국가관), 조직 내 협력과 위계 질서 수용, 장기근속 의지와 헌신, 상사 지시 이행 및 합리적 소통, 민원인 응대 역량, 공익과 개인 이익 충돌 시 공익 우선 판단";
+function createAutocompleteField({ root, categoryIconSrc, search, onChange }) {
+  const input = root.querySelector(".autocomplete-input");
+  const wrap = root.querySelector(".autocomplete-input-wrap");
+  const dropdown = root.querySelector(".autocomplete-dropdown");
+  const leftSearch = root.querySelector(".ac-icon-left-search");
+  const leftCategory = root.querySelector(".ac-icon-left-category");
+  const clearBtn = root.querySelector(".ac-clear");
+  const rightSearch = root.querySelector(".ac-icon-right-search");
+  const chipRow = root.querySelector(".chip-row");
 
-interviewRolePresetButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    interviewRoleInput.value = button.dataset.rolePreset;
-    interviewRoleInput.dispatchEvent(new Event("input", { bubbles: true }));
-    interviewRoleInput.dispatchEvent(new Event("change", { bubbles: true }));
-    syncRolePresetSelection();
+  leftCategory.src = categoryIconSrc;
 
-    if (button.dataset.rolePreset === "공무원" && interviewTalentInput) {
-      interviewTalentInput.value = CIVIL_SERVANT_TALENT;
+  let activeIndex = -1;
+  let currentResults = [];
+  let debounceTimer = null;
+
+  function renderState() {
+    const typing = document.activeElement === input;
+    const hasValue = input.value.trim().length > 0;
+
+    leftSearch.hidden = !typing;
+    leftCategory.hidden = !(hasValue && !typing);
+    clearBtn.hidden = !typing;
+    rightSearch.hidden = typing;
+    wrap.classList.toggle("is-typing", typing);
+    wrap.classList.toggle("has-left-icon", typing || hasValue);
+    if (chipRow) chipRow.hidden = typing || hasValue;
+  }
+
+  function closeDropdown() {
+    dropdown.hidden = true;
+    dropdown.innerHTML = "";
+    activeIndex = -1;
+    currentResults = [];
+  }
+
+  function highlightMatch(text, query) {
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return escapeFlowHtml(text);
+    return (
+      escapeFlowHtml(text.slice(0, idx)) +
+      "<mark>" + escapeFlowHtml(text.slice(idx, idx + query.length)) + "</mark>" +
+      escapeFlowHtml(text.slice(idx + query.length))
+    );
+  }
+
+  function updateActiveItem() {
+    dropdown.querySelectorAll("li").forEach((li, i) => {
+      li.classList.toggle("is-active", i === activeIndex);
+    });
+  }
+
+  function renderDropdown(results, query) {
+    currentResults = results;
+    activeIndex = results.length ? 0 : -1;
+    if (!results.length) {
+      closeDropdown();
+      return;
+    }
+    dropdown.innerHTML = results
+      .map((item, i) => `<li data-index="${i}" class="${i === 0 ? "is-active" : ""}">${highlightMatch(item, query)}</li>`)
+      .join("");
+    dropdown.hidden = false;
+    dropdown.querySelectorAll("li").forEach((li) => {
+      li.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        commit(results[Number(li.dataset.index)]);
+      });
+    });
+  }
+
+  function commit(value) {
+    input.value = value;
+    closeDropdown();
+    input.blur();
+    renderState();
+    onChange(value);
+  }
+
+  input.addEventListener("input", () => {
+    onChange(input.value.trim());
+    renderState();
+    clearTimeout(debounceTimer);
+    const query = input.value.trim();
+    if (!query) {
+      closeDropdown();
+      return;
+    }
+    debounceTimer = setTimeout(async () => {
+      const results = await search(query);
+      renderDropdown(results, query);
+    }, 120);
+  });
+
+  input.addEventListener("focus", renderState);
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      closeDropdown();
+      renderState();
+    }, 120);
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (dropdown.hidden) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, currentResults.length - 1);
+      updateActiveItem();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      updateActiveItem();
+    } else if (event.key === "Enter") {
+      if (activeIndex >= 0) {
+        event.preventDefault();
+        commit(currentResults[activeIndex]);
+      }
+    } else if (event.key === "Escape") {
+      closeDropdown();
     }
   });
-});
 
-function syncInterviewPersonaCards() {
-  const value = interviewPersonaSelect.value;
-  interviewPersonaCards.forEach((card) => {
-    const selected = card.dataset.interviewPersona === value;
-    card.classList.toggle("is-selected", selected);
-    card.setAttribute("aria-pressed", String(selected));
+  clearBtn.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    input.value = "";
+    closeDropdown();
+    onChange("");
+    input.focus();
+    renderState();
   });
-  if (interviewPersonaNext) interviewPersonaNext.disabled = !value;
+
+  root.querySelectorAll("[data-chip-value]").forEach((chip) => {
+    chip.addEventListener("click", () => commit(chip.dataset.chipValue));
+  });
+
+  renderState();
 }
 
-interviewPersonaCards.forEach((card) => {
-  card.addEventListener("click", () => {
-    interviewPersonaSelect.value = card.dataset.interviewPersona;
-    syncInterviewPersonaCards();
-  });
+createAutocompleteField({
+  root: document.querySelector('.autocomplete-field[data-field="company"]'),
+  categoryIconSrc: "./assets/images/icon-location-city.svg",
+  search: (query) => window.PitaSearch.companies(query),
+  onChange: updateInterviewJobNext,
 });
 
-interviewRoleInput.addEventListener("input", syncRolePresetSelection);
-syncRolePresetSelection();
-syncInterviewPersonaCards();
+createAutocompleteField({
+  root: document.querySelector('.autocomplete-field[data-field="role"]'),
+  categoryIconSrc: "./assets/images/icon-business-center.svg",
+  search: (query) => window.PitaSearch.roles(query),
+  onChange: updateInterviewJobNext,
+});
+
+updateInterviewJobNext();
 
 interviewTypeSelect.addEventListener("change", () => {
   interviewSetupNext.disabled = !interviewTypeSelect.value;
   persistSession();
 });
+
+function syncInterviewTypeCards() {
+  const value = interviewTypeSelect.value;
+  interviewTypeCards.forEach((card) => {
+    const selected = card.dataset.interviewTypeValue === value;
+    card.classList.toggle("is-selected", selected);
+    card.setAttribute("aria-pressed", String(selected));
+  });
+}
+
+interviewTypeCards.forEach((card) => {
+  card.addEventListener("click", () => {
+    interviewTypeSelect.value = card.dataset.interviewTypeValue;
+    syncInterviewTypeCards();
+    interviewTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+});
+
+syncInterviewTypeCards();
+
+function syncDepthTicks() {
+  const value = Number(depthInput.value);
+  depthTicks.forEach((tick) => {
+    const tickValue = Number(tick.dataset.depthValue);
+    tick.classList.toggle("is-active", tickValue === value);
+    tick.classList.toggle("is-passed", tickValue < value);
+  });
+  if (depthTrackFill) depthTrackFill.style.width = `${((value - 1) / 4) * 100}%`;
+}
+
+depthTicks.forEach((tick) => {
+  tick.addEventListener("click", () => {
+    depthInput.value = tick.dataset.depthValue;
+    syncDepthTicks();
+    depthInput.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+});
+
+syncDepthTicks();
 
 interviewBranchButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -169,20 +390,73 @@ interviewBranchButtons.forEach((button) => {
   });
 });
 
+const DEPTH_LABELS = { 1: "편안하게", 2: "가볍게", 3: "실전처럼", 4: "깐깐하게", 5: "압박감 있게" };
+
+function renderInterviewReadySummary() {
+  const profile = getProfile();
+  const depthValue = Number(depthInput.value);
+  document.getElementById("ready-summary-company").textContent = profile.company;
+  document.getElementById("ready-summary-role").textContent = profile.role;
+  document.getElementById("ready-summary-type").textContent = profile.interviewType;
+  document.getElementById("ready-summary-depth").textContent =
+    `${depthValue}단계 ${DEPTH_LABELS[depthValue] || ""}`;
+}
+
 interviewSetupNext.addEventListener("click", async () => {
   if (!interviewTypeSelect.value) return;
-  if (interviewBranch === "practice") {
-    showInterviewScreen("interview-environment");
-    return;
-  }
 
   showInterviewScreen("questions-loading");
   await loadExpectedQuestions();
+  showInterviewScreen(interviewBranch === "practice" ? "interview-ready" : "questions-report");
 });
 
+const QUESTIONS_LOADING_TOTAL_STEPS = 4;
+const QUESTIONS_LOADING_MIN_DURATION_MS = 3200;
+let questionsLoadingTimer = null;
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function setQuestionsLoadingStep(step) {
+  document.querySelectorAll('[data-screen="questions-loading"] .loading-checklist-step').forEach((el) => {
+    const stepNumber = Number(el.dataset.step);
+    const isDone = stepNumber < step;
+    const isCurrent = stepNumber === step;
+    el.classList.toggle("is-done", isDone);
+    el.classList.toggle("is-current", isCurrent);
+    const status = el.querySelector(".loading-checklist-status");
+    if (status) status.textContent = isDone ? "완료" : isCurrent ? "진행 중" : "대기";
+  });
+  const fill = document.getElementById("questions-loading-rail-fill");
+  if (fill) {
+    const progress = ((step - 1) / (QUESTIONS_LOADING_TOTAL_STEPS - 1)) * 100;
+    fill.style.width = `${Math.min(Math.max(progress, 0), 100)}%`;
+  }
+}
+
+function startQuestionsLoadingSteps() {
+  clearInterval(questionsLoadingTimer);
+  let step = 1;
+  setQuestionsLoadingStep(step);
+  questionsLoadingTimer = setInterval(() => {
+    if (step >= QUESTIONS_LOADING_TOTAL_STEPS - 1) {
+      clearInterval(questionsLoadingTimer);
+      return;
+    }
+    step += 1;
+    setQuestionsLoadingStep(step);
+  }, 900);
+}
+
+function stopQuestionsLoadingSteps() {
+  clearInterval(questionsLoadingTimer);
+  questionsLoadingTimer = null;
+}
+
 async function loadExpectedQuestions() {
-  document.getElementById("questions-persona-label").textContent =
-    interviewPersonaSelect.selectedOptions[0]?.textContent || "가상 면접관";
+  startQuestionsLoadingSteps();
+  const minDuration = wait(QUESTIONS_LOADING_MIN_DURATION_MS);
 
   try {
     const response = await fetch("/.netlify/functions/gemini-interview", {
@@ -202,7 +476,9 @@ async function loadExpectedQuestions() {
     renderExpectedQuestions(fallbackExpectedQuestions());
   }
 
-  showInterviewScreen("questions-report");
+  await minDuration;
+  stopQuestionsLoadingSteps();
+  setQuestionsLoadingStep(QUESTIONS_LOADING_TOTAL_STEPS);
 }
 
 function renderExpectedQuestions(questions) {
@@ -212,28 +488,66 @@ function renderExpectedQuestions(questions) {
     result[category].push(item);
     return result;
   }, {});
+  const categories = Object.entries(grouped);
+  const profile = getProfile();
 
-  document.getElementById("expected-questions-content").innerHTML = Object.entries(grouped)
+  state.expectedQuestions = questions;
+  persistSession();
+
+  document.getElementById("questions-report-title").textContent = `예상 질문을 ${questions.length}개 준비했어요`;
+  document.getElementById("questions-report-subtitle").textContent =
+    `${profile.company} | ${profile.role} | ${profile.interviewType}`;
+
+  document.getElementById("questions-report-chips").innerHTML = categories
     .map(
       ([category, items]) => `
-        <section class="question-group">
-          <h3>${escapeFlowHtml(category)}</h3>
-          <ol>
-            ${items
-              .map(
-                (item) => `
-                  <li>
-                    <strong>${escapeFlowHtml(item.question || String(item))}</strong>
-                    ${item.intent ? `<p>질문 의도 · ${escapeFlowHtml(item.intent)}</p>` : ""}
-                  </li>
-                `,
-              )
-              .join("")}
-          </ol>
-        </section>
+        <div class="report-chip">
+          <span>${escapeFlowHtml(category)}</span>
+          <b>${items.length}</b>
+        </div>
       `,
     )
     .join("");
+
+  document.getElementById("expected-questions-content").innerHTML = categories
+    .map(
+      ([category, items], index) => `
+        <div class="accordion-section${index === 0 ? " is-open" : ""}">
+          <button type="button" class="accordion-header">
+            <span class="accordion-title">
+              <span>${escapeFlowHtml(category)}</span>
+              <b>${items.length}</b>
+            </span>
+            <span class="accordion-chevron" aria-hidden="true">
+              <svg width="14" height="8" viewBox="0 0 14 8"><path d="M7 0L14 8H0Z" fill="currentColor" /></svg>
+            </span>
+          </button>
+          <div class="accordion-body">
+            ${items
+              .map(
+                (item, itemIndex) => `
+                  <div class="question-card">
+                    <strong>Q${itemIndex + 1}. ${escapeFlowHtml(item.question || String(item))}</strong>
+                    ${
+                      item.intent
+                        ? `<div class="question-intent"><span class="question-intent-bar"></span><p>${escapeFlowHtml(item.intent)}</p></div>`
+                        : ""
+                    }
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        </div>
+      `,
+    )
+    .join("");
+
+  document.querySelectorAll('[data-screen="questions-report"] .accordion-header').forEach((header) => {
+    header.addEventListener("click", () => {
+      header.closest(".accordion-section").classList.toggle("is-open");
+    });
+  });
 }
 
 function fallbackExpectedQuestions() {
@@ -271,63 +585,6 @@ function escapeFlowHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-async function startInterviewCheckCamera() {
-  const video = document.getElementById("interview-check-video");
-  const placeholder = document.getElementById("interview-check-placeholder");
-  try {
-    interviewCheckStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: "user" },
-      audio: false,
-    });
-    video.srcObject = interviewCheckStream;
-    placeholder.hidden = true;
-  } catch (error) {
-    placeholder.hidden = false;
-    placeholder.textContent = "카메라 권한이 필요합니다";
-  }
-}
-
-function stopInterviewCheckCamera() {
-  interviewCheckStream?.getTracks().forEach((track) => track.stop());
-  interviewCheckStream = null;
-  const video = document.getElementById("interview-check-video");
-  if (video) video.srcObject = null;
-}
-
-document.getElementById("interview-mic-check").addEventListener("click", async () => {
-  const status = document.getElementById("interview-check-status");
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    status.textContent = "마이크 연결을 확인했어요.";
-    setTimeout(() => stream.getTracks().forEach((track) => track.stop()), 1000);
-  } catch (error) {
-    status.textContent = "마이크 권한을 허용한 뒤 다시 시도해주세요.";
-  }
-});
-
-document.getElementById("interview-speaker-check").addEventListener("click", () => {
-  const status = document.getElementById("interview-check-status");
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) {
-    status.textContent = "이 브라우저에서는 스피커 테스트를 지원하지 않습니다.";
-    return;
-  }
-  const context = new AudioContextClass();
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  oscillator.frequency.value = 523.25;
-  gain.gain.value = 0.08;
-  oscillator.connect(gain).connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.35);
-  oscillator.addEventListener("ended", () => context.close());
-  status.textContent = "테스트음이 들렸다면 스피커 준비가 완료됐어요.";
-});
-
-document.getElementById("startButton").addEventListener("click", () => {
-  showInterviewScreen("interview-practice");
-});
-
 function setInterviewReportPersona() {
   const personaLabel = document.getElementById("interview-report-persona");
   if (personaLabel) {
@@ -364,8 +621,6 @@ document.getElementById("interview-restart").addEventListener("click", () => {
   document.getElementById("resetButton").click();
   showInterviewScreen("interview-upload");
 });
-
-window.addEventListener("beforeunload", stopInterviewCheckCamera);
 
 if (interviewTypeSelect.value) {
   interviewSetupNext.disabled = false;

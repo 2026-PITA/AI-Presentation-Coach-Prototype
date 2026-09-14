@@ -1,4 +1,5 @@
 const zlib = require("zlib");
+const { PDFParse } = require("pdf-parse");
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +32,7 @@ exports.handler = async (event) => {
     }
 
     if (filename.endsWith(".pdf")) {
-      const text = extractPdfText(buffer);
+      const text = await extractPdfText(buffer);
       return json(200, { text, method: "PDF 텍스트 추출 완료" });
     }
 
@@ -206,96 +207,22 @@ function decodeXmlText(value) {
     .trim();
 }
 
-function extractPdfText(buffer) {
-  const source = buffer.toString("latin1");
-  const chunks = [source];
-  const streamPattern = /<<(?:.|\n|\r)*?>>\s*stream\r?\n([\s\S]*?)\r?\nendstream/g;
-  let match;
+async function extractPdfText(buffer) {
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    const text = (result.text || "")
+      .replace(/--\s*\d+\s*of\s*\d+\s*--/g, "")
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
 
-  while ((match = streamPattern.exec(source))) {
-    const header = match[0].slice(0, Math.min(match[0].indexOf("stream"), 400));
-    const raw = Buffer.from(match[1], "latin1");
-    if (/FlateDecode/.test(header)) {
-      try {
-        chunks.push(zlib.inflateSync(raw).toString("latin1"));
-      } catch (error) {
-        try {
-          chunks.push(zlib.inflateRawSync(raw).toString("latin1"));
-        } catch (innerError) {
-          chunks.push(match[1]);
-        }
-      }
-    } else {
-      chunks.push(match[1]);
+    if (!text) {
+      throw new Error("PDF에서 텍스트를 추출하지 못했습니다. 스캔 PDF일 수 있습니다.");
     }
+
+    return text;
+  } finally {
+    await parser.destroy();
   }
-
-  const text = chunks
-    .flatMap((chunk) => extractPdfTextOperators(chunk))
-    .join(" ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-
-  if (!text) {
-    throw new Error("PDF에서 텍스트를 추출하지 못했습니다. 스캔 PDF일 수 있습니다.");
-  }
-
-  return text;
-}
-
-function extractPdfTextOperators(text) {
-  const output = [];
-  const literalPattern = /\((?:\\.|[^\\)])*\)\s*Tj/g;
-  const arrayPattern = /\[((?:.|\n|\r)*?)\]\s*TJ/g;
-  const hexPattern = /<([0-9a-fA-F\s]+)>\s*Tj/g;
-  let match;
-
-  while ((match = literalPattern.exec(text))) {
-    output.push(decodePdfLiteral(match[0].replace(/\)\s*Tj$/, "").slice(1)));
-  }
-
-  while ((match = arrayPattern.exec(text))) {
-    const part = match[1];
-    const literals = [...part.matchAll(/\((?:\\.|[^\\)])*\)/g)].map((item) =>
-      decodePdfLiteral(item[0].slice(1, -1)),
-    );
-    const hexes = [...part.matchAll(/<([0-9a-fA-F\s]+)>/g)].map((item) =>
-      decodePdfHex(item[1]),
-    );
-    output.push([...literals, ...hexes].join(""));
-  }
-
-  while ((match = hexPattern.exec(text))) {
-    output.push(decodePdfHex(match[1]));
-  }
-
-  return output.filter(Boolean);
-}
-
-function decodePdfLiteral(value) {
-  return value
-    .replace(/\\n/g, "\n")
-    .replace(/\\r/g, "\r")
-    .replace(/\\t/g, "\t")
-    .replace(/\\\(/g, "(")
-    .replace(/\\\)/g, ")")
-    .replace(/\\\\/g, "\\")
-    .replace(/\\([0-7]{1,3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8)))
-    .trim();
-}
-
-function decodePdfHex(value) {
-  const cleaned = value.replace(/\s+/g, "");
-  if (!cleaned) return "";
-  const buffer = Buffer.from(cleaned.length % 2 ? `${cleaned}0` : cleaned, "hex");
-  if (buffer[0] === 0xfe && buffer[1] === 0xff) {
-    const source = buffer.slice(2);
-    const swapped = Buffer.alloc(source.length);
-    for (let i = 0; i < source.length; i += 2) {
-      swapped[i] = source[i + 1] || 0;
-      swapped[i + 1] = source[i] || 0;
-    }
-    return swapped.toString("utf16le");
-  }
-  return buffer.toString("utf8").replace(/\0/g, "").trim();
 }
