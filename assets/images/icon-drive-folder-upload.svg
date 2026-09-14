@@ -1,0 +1,10 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="drive_folder_upload">
+<mask id="mask0_0_6" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36">
+<rect id="Bounding box" width="36" height="36" fill="#D9D9D9"/>
+</mask>
+<g mask="url(#mask0_0_6)">
+<path id="drive_folder_upload_2" d="M16.5 25.5H19.5V19.2L21.9 21.6L24 19.5L18 13.5L12 19.5L14.1 21.6L16.5 19.2V25.5ZM6 30C5.175 30 4.46875 29.7063 3.88125 29.1188C3.29375 28.5313 3 27.825 3 27V9C3 8.175 3.29375 7.46875 3.88125 6.88125C4.46875 6.29375 5.175 6 6 6H15L18 9H30C30.825 9 31.5313 9.29375 32.1188 9.88125C32.7063 10.4688 33 11.175 33 12V27C33 27.825 32.7063 28.5313 32.1188 29.1188C31.5313 29.7063 30.825 30 30 30H6ZM6 27H30V12H16.7625L13.7625 9H6V27Z" fill="#1C1B1F"/>
+</g>
+</g>
+</svg>

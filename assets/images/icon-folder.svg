@@ -1,0 +1,10 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="folder">
+<mask id="mask0_0_6" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32">
+<rect id="Bounding box" width="32" height="32" fill="#D9D9D9"/>
+</mask>
+<g mask="url(#mask0_0_6)">
+<path id="folder_2" d="M5.33333 26.6667C4.6 26.6667 3.97222 26.4056 3.45 25.8833C2.92778 25.3611 2.66667 24.7333 2.66667 24V8C2.66667 7.26667 2.92778 6.63889 3.45 6.11667C3.97222 5.59444 4.6 5.33333 5.33333 5.33333H13.3333L16 8H26.6667C27.4 8 28.0278 8.26111 28.55 8.78333C29.0722 9.30556 29.3333 9.93333 29.3333 10.6667V24C29.3333 24.7333 29.0722 25.3611 28.55 25.8833C28.0278 26.4056 27.4 26.6667 26.6667 26.6667H5.33333ZM5.33333 24H26.6667V10.6667H14.9L12.2333 8H5.33333V24Z" fill="#2E2E2E"/>
+</g>
+</g>
+</svg>

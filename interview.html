@@ -6,6 +6,139 @@
     <title>PITA · Presentation & Interview Teaching Assistant</title>
     <link rel="stylesheet" href="./assets/css/app.css" />
     <style>
+      .app-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        height: 87px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 0 max(24px, calc(50% - 612px));
+        background: #252525;
+      }
+      .app-topbar-logo {
+        flex: 0 0 auto;
+        color: var(--pita-cyan);
+        font-family: "ChangwonDangamAsac", Impact, "Arial Black", sans-serif;
+        font-size: 48px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-decoration: none;
+      }
+      .app-topbar-steps {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .app-topbar-steps::-webkit-scrollbar {
+        display: none;
+      }
+      .app-topbar-step {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border-radius: 16px;
+        white-space: nowrap;
+      }
+      .app-topbar-step-badge {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 11px;
+        background: #4d4d4d;
+        color: #7a7a7a;
+        font-size: 12px;
+        font-weight: 700;
+        transition: background 0.2s, color 0.2s;
+      }
+      .app-topbar-step-label {
+        font-size: 15px;
+        font-weight: 500;
+        color: #7a7a7a;
+        transition: color 0.2s;
+      }
+      .app-topbar-sep {
+        flex: 0 0 auto;
+        width: 28px;
+        height: 1px;
+        background: #474747;
+        transition: background 0.2s;
+      }
+      .app-topbar-step.is-done .app-topbar-step-badge,
+      .app-topbar-step.is-current .app-topbar-step-badge {
+        background: var(--pita-cyan);
+        color: #121212;
+      }
+      .app-topbar-step.is-done .app-topbar-step-label {
+        color: #d9d9d9;
+      }
+      .app-topbar-step.is-current {
+        background: rgba(0, 255, 255, 0.14);
+      }
+      .app-topbar-step.is-current .app-topbar-step-label {
+        color: var(--pita-cyan);
+        font-weight: 700;
+      }
+      .app-topbar-sep.is-done {
+        background: var(--pita-cyan);
+      }
+      .interview-app #apiNotice {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        z-index: 200;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        max-width: min(560px, calc(100% - 32px));
+        padding: 12px 16px 12px 20px;
+        border-radius: 12px;
+        background: #3a2222;
+        border: 1px solid #7a3b3b;
+        color: #ffb4b4;
+        font-size: 14px;
+        line-height: 1.5;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+      }
+      .interview-app #apiNotice[hidden] {
+        display: none;
+      }
+      .interview-app #apiNoticeText {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+      .interview-app #retryButton {
+        flex: 0 0 auto;
+        height: 34px;
+        padding: 0 14px;
+        border: 1px solid #a85252;
+        border-radius: 8px;
+        background: none;
+        color: #ffb4b4;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .interview-app #retryButton[hidden] {
+        display: none;
+      }
+      .interview-app #retryButton:hover {
+        background: rgba(255, 180, 180, 0.12);
+      }
       .interview-app .upload-tip {
         padding: 5px 24px;
         border-radius: 8px;
@@ -18,26 +151,11 @@
         margin-left: 4px;
         color: #e53935;
       }
-      .interview-app .upload-trigger {
-        background: #2b3032;
-        color: #fff;
-      }
-      .interview-app .upload-trigger:hover {
-        background: #3a4245;
-      }
-      .interview-company-section {
-        margin-top: 40px;
-        display: grid;
-        gap: 16px;
-        width: 808px;
-      }
-      .interview-company-section .flow-textarea {
-        width: 100%;
-        min-height: 160px;
-        padding: 20px 24px;
-        font-size: 22px;
-        line-height: 1.6;
-        resize: vertical;
+      #interview-file-rows,
+      #interview-job-file-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
       }
       .interview-file-add {
         display: inline-flex;
@@ -55,43 +173,1504 @@
         border-color: var(--pita-cyan);
         color: var(--pita-cyan);
       }
+      .interview-app [data-screen="interview-upload"] .upload-trigger {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 0;
+        margin-bottom: 24px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        background: #737373;
+        color: #fff;
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .interview-app [data-screen="interview-upload"] .upload-trigger:hover {
+        background: #8a8a8a;
+      }
+      .interview-app [data-screen="interview-upload"] .upload-box {
+        width: 100%;
+        min-height: 0;
+        padding: 60px 100px;
+        gap: 20px;
+        border: 1px solid var(--pita-cyan);
+        border-radius: 16px;
+        background: #f9ffff;
+        cursor: pointer;
+        transition: border-color 0.16s, background 0.16s;
+      }
+      .interview-app [data-screen="interview-upload"] .upload-box.is-dragover {
+        background: rgba(0, 238, 238, 0.14);
+      }
+      .interview-app [data-screen="interview-upload"] .upload-box-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .interview-app [data-screen="interview-upload"] .upload-box-icon {
+        width: 36px;
+        height: 36px;
+        flex: 0 0 auto;
+      }
+      .interview-app [data-screen="interview-upload"] .upload-box-row span {
+        font-size: 28px;
+        font-weight: 600;
+        color: #000;
+      }
+      .interview-app [data-screen="interview-upload"] .upload-box p {
+        margin: 0;
+        color: #000;
+        font-weight: 300;
+        font-size: 24px;
+      }
+      .interview-app [data-screen="interview-upload"] .upload-tip {
+        display: table;
+        margin: 24px auto 0;
+      }
+      .interview-app [data-screen="interview-upload"] .flow-heading strong {
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-upload"] .flow-nav {
+        margin-top: 100px;
+      }
+
+      .interview-app [data-screen="interview-job"] .flow-screen-body {
+        display: grid;
+        gap: 40px;
+        margin-top: 60px;
+      }
+      .interview-app [data-screen="interview-job"] .flow-nav {
+        margin-top: 80px;
+      }
+      .interview-app [data-screen="interview-job"] .job-select-files {
+        display: grid;
+        gap: 24px;
+      }
+      .interview-app [data-screen="interview-job"] .job-select-files .uploaded-file-row button {
+        cursor: default;
+        pointer-events: none;
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-field {
+        display: grid;
+        gap: 24px;
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 28px;
+        font-weight: 600;
+        color: #fff;
+      }
+      .interview-app [data-screen="interview-job"] .required-tag {
+        font-size: 24px;
+        font-weight: 500;
+        color: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-input-wrap {
+        position: relative;
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-input {
+        width: 100%;
+        min-height: 0;
+        padding: 24px 64px 24px 32px;
+        border: 1px solid #111;
+        border-radius: 8px;
+        background: #f9ffff;
+        color: #1c1c1c;
+        font-size: 24px;
+        font-weight: 600;
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-input::placeholder {
+        color: #757575;
+        font-weight: 600;
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-input-wrap.is-typing .autocomplete-input {
+        border: 2px solid var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-input-wrap.has-left-icon .autocomplete-input {
+        padding-left: 76px;
+      }
+      .interview-app [data-screen="interview-job"] .ac-icon {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 32px;
+        height: 32px;
+        border: 0;
+        padding: 0;
+        background: transparent;
+      }
+      .interview-app [data-screen="interview-job"] .ac-icon-left-search,
+      .interview-app [data-screen="interview-job"] .ac-icon-left-category {
+        left: 32px;
+      }
+      .interview-app [data-screen="interview-job"] .ac-icon-right-search,
+      .interview-app [data-screen="interview-job"] .ac-clear {
+        right: 32px;
+      }
+      .interview-app [data-screen="interview-job"] .ac-clear img {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-dropdown {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(100% + 8px);
+        z-index: 30;
+        list-style: none;
+        margin: 0;
+        padding: 8px 0;
+        border: 1px solid #111;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        max-height: 320px;
+        overflow-y: auto;
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-dropdown li {
+        height: 64px;
+        display: flex;
+        align-items: center;
+        padding: 0 32px;
+        color: #1c1c1c;
+        font-size: 24px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-dropdown li:hover,
+      .interview-app [data-screen="interview-job"] .autocomplete-dropdown li.is-active {
+        background: #f0f0f0;
+      }
+      .interview-app [data-screen="interview-job"] .autocomplete-dropdown mark {
+        padding: 4px 2px;
+        border-radius: 4px;
+        background: #d9d9d9;
+        color: #1c1c1c;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-job"] .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .interview-app [data-screen="interview-job"] .chip {
+        border: 1px solid #757575;
+        border-radius: 22px;
+        padding: 10px 20px;
+        background: transparent;
+        color: #e0e0e0;
+        font-size: 20px;
+        font-weight: 500;
+      }
+      .interview-app [data-screen="interview-job"] .chip:hover {
+        border-color: var(--pita-cyan);
+        color: var(--pita-cyan);
+      }
+
+      .interview-app [data-screen="interview-setup"] .flow-screen-body {
+        display: flex;
+        flex-direction: column;
+        gap: 40px;
+      }
+      .interview-app [data-screen="interview-setup"] .setup-field-group {
+        display: grid;
+        gap: 24px;
+      }
+      .interview-app [data-screen="interview-setup"] .setup-field-title {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .interview-app [data-screen="interview-setup"] .interview-type-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .interview-app [data-screen="interview-setup"] .interview-type-card {
+        min-height: 140px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 20px 12px;
+        border: 1px solid #9e9e9e;
+        border-radius: 12px;
+        background: transparent;
+        color: #fff;
+        text-align: center;
+      }
+      .interview-app [data-screen="interview-setup"] .interview-type-card strong {
+        font-size: 24px;
+        font-weight: 500;
+      }
+      .interview-app [data-screen="interview-setup"] .interview-type-card span {
+        font-size: 18px;
+        color: #9e9e9e;
+        line-height: 1.55;
+      }
+      .interview-app [data-screen="interview-setup"] .interview-type-card.is-selected {
+        border: 2px solid var(--pita-cyan);
+        background: var(--pita-selected-bg);
+      }
+      .interview-app [data-screen="interview-setup"] .interview-type-card.is-selected strong {
+        color: var(--pita-cyan);
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-setup"] .purpose-grid {
+        display: flex;
+        gap: 16px;
+      }
+      .interview-app [data-screen="interview-setup"] .purpose-card {
+        flex: 1;
+        min-height: 80px;
+        border: 1px solid #9e9e9e;
+        border-radius: 12px;
+        background: transparent;
+        color: #fff;
+        font-size: 24px;
+        font-weight: 500;
+      }
+      .interview-app [data-screen="interview-setup"] .purpose-card.is-selected {
+        border: 2px solid var(--pita-cyan);
+        background: var(--pita-selected-bg);
+        color: var(--pita-cyan);
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-setup"] .depth-slider {
+        position: relative;
+      }
+      .interview-app [data-screen="interview-setup"] .depth-track {
+        position: absolute;
+        top: 7px;
+        left: 10%;
+        right: 10%;
+        height: 6px;
+        background: #595959;
+        border-radius: 3px;
+        transform: translateY(-50%);
+      }
+      .interview-app [data-screen="interview-setup"] .depth-track-fill {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        background: var(--pita-cyan);
+        border-radius: 3px;
+      }
+      .interview-app [data-screen="interview-setup"] .depth-ticks {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        position: relative;
+      }
+      .interview-app [data-screen="interview-setup"] .depth-tick {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding-top: 28px;
+        border: 0;
+        background: none;
+        color: #9e9e9e;
+        cursor: pointer;
+      }
+      .interview-app [data-screen="interview-setup"] .depth-tick-dot {
+        position: absolute;
+        top: 7px;
+        left: 50%;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #9e9e9e;
+        transform: translate(-50%, -50%);
+        transition: background 0.15s, width 0.15s, height 0.15s;
+      }
+      .interview-app [data-screen="interview-setup"] .depth-tick-num {
+        font-size: 18px;
+        font-weight: 500;
+        color: #9e9e9e;
+      }
+      .interview-app [data-screen="interview-setup"] .depth-tick-label {
+        font-size: 18px;
+        color: #9e9e9e;
+      }
+      .interview-app [data-screen="interview-setup"] .depth-tick.is-passed .depth-tick-dot {
+        background: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-setup"] .depth-tick.is-active .depth-tick-dot {
+        box-sizing: border-box;
+        width: 32px;
+        height: 32px;
+        border: 4px solid var(--pita-bg);
+        background: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-setup"] .depth-tick.is-active .depth-tick-num,
+      .interview-app [data-screen="interview-setup"] .depth-tick.is-active .depth-tick-label {
+        color: var(--pita-cyan);
+        font-weight: 700;
+      }
+
+      .interview-app [data-screen="interview-ready"] .flow-screen-body {
+        margin-top: 56px;
+      }
+      .interview-app [data-screen="interview-ready"] .ready-summary-card {
+        border: 1px solid #525252;
+        border-radius: 12px;
+        background: #3c3c3c;
+        overflow: hidden;
+      }
+      .interview-app [data-screen="interview-ready"] .ready-summary-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 22px 32px;
+      }
+      .interview-app [data-screen="interview-ready"] .ready-summary-row + .ready-summary-row {
+        border-top: 1px solid #525252;
+      }
+      .interview-app [data-screen="interview-ready"] .ready-summary-row span {
+        color: #8c8c8c;
+        font-size: 20px;
+        font-weight: 500;
+      }
+      .interview-app [data-screen="interview-ready"] .ready-summary-row strong {
+        color: #fff;
+        font-size: 22px;
+        font-weight: 700;
+      }
+
+      .interview-app [data-screen="questions-loading"] .loading-checklist {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        width: 560px;
+        margin: 40px auto 0;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-progress {
+        height: 5px;
+        border-radius: 3px;
+        background: #4d4d4d;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-progress-fill {
+        height: 4px;
+        width: 0%;
+        border-radius: 3px;
+        background: var(--pita-cyan);
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        transition: width 0.4s ease;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-steps {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 11px 16px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-dot {
+        box-sizing: border-box;
+        flex: 0 0 auto;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid #4d4d4d;
+        transition: border-color 0.3s, border-width 0.3s, background 0.3s;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-label {
+        flex: 1 0 0;
+        font-size: 15px;
+        font-weight: 500;
+        color: #7a7a7a;
+        transition: color 0.3s;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-status {
+        flex: 0 0 auto;
+        font-size: 13px;
+        font-weight: 500;
+        color: #7a7a7a;
+        transition: color 0.3s;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-step.is-done .loading-checklist-dot {
+        border-color: #4d4d4d;
+        background: var(--pita-cyan);
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-step.is-done .loading-checklist-label {
+        color: #d9d9d9;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-step.is-done .loading-checklist-status {
+        color: var(--pita-cyan);
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-step.is-current {
+        background: #292929;
+        border-color: var(--pita-cyan);
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-step.is-current .loading-checklist-dot {
+        border-width: 3px;
+        border-color: var(--pita-cyan);
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-step.is-current .loading-checklist-label {
+        color: #fff;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="questions-loading"] .loading-checklist-step.is-current .loading-checklist-status {
+        color: var(--pita-cyan);
+      }
+
+      .interview-app [data-screen="questions-report"] .flow-screen-body {
+        width: 808px;
+        margin: 40px auto 0;
+        display: grid;
+        gap: 24px;
+      }
+      .interview-app [data-screen="questions-report"] .questions-report-subtitle {
+        margin: 0;
+        color: #8c8c8c;
+        font-size: 20px;
+        font-weight: 600;
+        text-align: center;
+      }
+      .interview-app [data-screen="questions-report"] .questions-report-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .interview-app [data-screen="questions-report"] .report-chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border: 1px solid #8c8c8c;
+        border-radius: 22px;
+        background: #404040;
+        color: #d9d9d9;
+        font-size: 18px;
+        font-weight: 500;
+      }
+      .interview-app [data-screen="questions-report"] .report-chip b {
+        color: var(--pita-cyan);
+        font-weight: 700;
+      }
+      .interview-app [data-screen="questions-report"] .questions-report-accordion {
+        display: grid;
+        gap: 16px;
+      }
+      .interview-app [data-screen="questions-report"] .accordion-section {
+        border-radius: 12px;
+        background: #3c3c3c;
+        padding: 24px 28px;
+      }
+      .interview-app [data-screen="questions-report"] .accordion-section.is-open {
+        border: 1px solid var(--pita-cyan);
+        padding-bottom: 28px;
+      }
+      .interview-app [data-screen="questions-report"] .accordion-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        border: 0;
+        background: none;
+        padding: 0;
+        cursor: pointer;
+        font: inherit;
+        text-align: left;
+      }
+      .interview-app [data-screen="questions-report"] .accordion-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 24px;
+        font-weight: 700;
+        color: #d9d9d9;
+      }
+      .interview-app [data-screen="questions-report"] .accordion-title b {
+        font-size: 20px;
+        font-weight: 700;
+        color: #8c8c8c;
+      }
+      .interview-app [data-screen="questions-report"] .accordion-section.is-open .accordion-title {
+        color: #fff;
+      }
+      .interview-app [data-screen="questions-report"] .accordion-section.is-open .accordion-title b {
+        color: var(--pita-cyan);
+      }
+      .interview-app [data-screen="questions-report"] .accordion-chevron {
+        display: inline-flex;
+        color: #8c8c8c;
+        transform: rotate(180deg);
+        transition: transform 0.2s, color 0.2s;
+      }
+      .interview-app [data-screen="questions-report"] .accordion-section.is-open .accordion-chevron {
+        color: var(--pita-cyan);
+        transform: rotate(0deg);
+      }
+      .interview-app [data-screen="questions-report"] .accordion-body {
+        display: none;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .interview-app [data-screen="questions-report"] .accordion-section.is-open .accordion-body {
+        display: flex;
+      }
+      .interview-app [data-screen="questions-report"] .question-card {
+        display: grid;
+        gap: 12px;
+        padding: 20px 24px;
+        border-radius: 8px;
+        background: #4a4a4a;
+      }
+      .interview-app [data-screen="questions-report"] .question-card strong {
+        font-size: 20px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .interview-app [data-screen="questions-report"] .question-intent {
+        display: flex;
+        gap: 12px;
+      }
+      .interview-app [data-screen="questions-report"] .question-intent-bar {
+        flex: 0 0 auto;
+        width: 3px;
+        border-radius: 2px;
+        background: var(--pita-cyan);
+      }
+      .interview-app [data-screen="questions-report"] .question-intent p {
+        margin: 0;
+        color: #8c8c8c;
+        font-size: 18px;
+        font-weight: 500;
+      }
+
+      .interview-app [data-screen="interview-practice"] .flow-screen-body.practice-wide {
+        margin: 32px auto 0;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-camera-stage {
+        position: relative;
+        width: 100%;
+        height: 420px;
+        overflow: hidden;
+        border-radius: 16px;
+        background: linear-gradient(158deg, #1f3333 0%, #12171a 71%);
+      }
+      .interview-app [data-screen="interview-practice"] .practice-camera-stage video {
+        display: none;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-camera-stage.is-live video {
+        display: block;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-rec-badge {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.55);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-rec-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ff4d4d;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-question-card {
+        margin-top: 24px;
+        padding: 32px 24px;
+        border: 2px solid var(--pita-cyan);
+        border-radius: 20px;
+        background: #2b2b2b;
+        box-shadow: 0 0 28px 0 rgba(0, 255, 255, 0.3);
+      }
+      .interview-app [data-screen="interview-practice"] .practice-question-tag {
+        margin: 0 0 12px;
+        color: var(--pita-cyan);
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-question-text {
+        margin: 0;
+        color: #fff;
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 40px;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-transcript-panel {
+        margin-top: 24px;
+        padding: 24px;
+        border: 1px solid var(--pita-cyan);
+        border-radius: 16px;
+        background: #252525;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-transcript-text {
+        margin: 0;
+        color: #d9d9d9;
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 32px;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-transcript-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 40px;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-answer-timer {
+        color: var(--pita-cyan);
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-answering-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 14px 7px 12px;
+        border-radius: 16px;
+        background: var(--pita-cyan);
+        color: #121212;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-wave {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-wave span {
+        width: 3px;
+        border-radius: 2px;
+        background: #121212;
+        animation: practice-wave-bounce 0.9s ease-in-out infinite;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-wave span:nth-child(1) {
+        height: 8px;
+        animation-delay: 0s;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-wave span:nth-child(2) {
+        height: 14px;
+        animation-delay: 0.15s;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-wave span:nth-child(3) {
+        height: 10px;
+        animation-delay: 0.3s;
+      }
+      @keyframes practice-wave-bounce {
+        0%,
+        100% {
+          transform: scaleY(0.6);
+        }
+        50% {
+          transform: scaleY(1);
+        }
+      }
+      .interview-app [data-screen="interview-practice"] .practice-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 32px;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-actions-right {
+        display: flex;
+        gap: 24px;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-btn {
+        min-width: 184px;
+        height: 44px;
+        padding: 0 20px;
+        border-radius: 10px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-btn-ghost {
+        border: 1px solid #474747;
+        background: transparent;
+        color: #d9d9d9;
+        font-weight: 500;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-btn-ghost:hover {
+        border-color: var(--pita-cyan);
+        color: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-practice"] .practice-btn-primary {
+        border: 0;
+        background: var(--pita-cyan);
+        color: #121212;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-practice"] .practice-btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      /* ===== 종합 리포트 (interview-report) ===== */
+      body.report-dashboard-active .app-topbar {
+        display: none;
+      }
+      body.report-dashboard-active {
+        height: 100vh;
+        overflow: hidden;
+      }
+      body.report-dashboard-active .flow-shell {
+        padding-top: 0;
+        height: 100vh;
+        min-height: 100vh;
+      }
+      .interview-app [data-screen="interview-report"] {
+        height: 100vh;
+        min-height: 100vh;
+      }
+      .interview-app [data-screen="interview-report"] .report-shell {
+        position: relative;
+        left: 50%;
+        width: 100vw;
+        margin-left: -50vw;
+        height: 100vh;
+        display: flex;
+        align-items: stretch;
+        overflow: hidden;
+      }
+      .interview-app [data-screen="interview-report"] .report-sidebar {
+        flex: 0 0 280px;
+        width: 280px;
+        height: 100%;
+        overflow-y: auto;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 36px;
+        padding: 40px 28px;
+        background: #1c1c1c;
+        border-right: 1px solid #2f2f2f;
+      }
+      .interview-app [data-screen="interview-report"] .report-sidebar-top {
+        display: flex;
+        flex-direction: column;
+        gap: 36px;
+      }
+      .interview-app [data-screen="interview-report"] .report-sidebar-logo {
+        display: block;
+        color: var(--pita-cyan);
+        font-family: "ChangwonDangamAsac", Impact, "Arial Black", sans-serif;
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-align: center;
+        text-decoration: none;
+      }
+      .interview-app [data-screen="interview-report"] .report-session-card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 16px 18px;
+        border-radius: 12px;
+        background: #363636;
+      }
+      .interview-app [data-screen="interview-report"] .report-session-label {
+        margin: 0;
+        color: #858585;
+        font-size: 13px;
+      }
+      .interview-app [data-screen="interview-report"] .report-session-main {
+        margin: 0;
+        color: #d9d9d9;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-session-sub {
+        margin: 0;
+        color: #858585;
+        font-size: 12px;
+      }
+      .interview-app [data-screen="interview-report"] .report-section-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .interview-app [data-screen="interview-report"] .report-nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #858585;
+        font-family: inherit;
+        font-size: 15px;
+        font-weight: 500;
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.16s, color 0.16s;
+      }
+      .interview-app [data-screen="interview-report"] .report-nav-mark {
+        flex: 0 0 auto;
+        width: 3px;
+        height: 16px;
+        border-radius: 2px;
+        background: #4d4d4d;
+        transition: background 0.16s;
+      }
+      .interview-app [data-screen="interview-report"] .report-nav-item.is-active {
+        background: rgba(0, 255, 255, 0.14);
+        color: var(--pita-cyan);
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-nav-item.is-active .report-nav-mark {
+        background: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-report"] .report-main {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        background: var(--pita-bg);
+      }
+      .interview-app [data-screen="interview-report"] #report-dashboard-root {
+        display: flex;
+        flex-direction: column;
+        gap: 44px;
+        padding: 40px 40px 60px;
+      }
+      .interview-app [data-screen="interview-report"] .report-section {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        scroll-margin-top: 24px;
+      }
+      .interview-app [data-screen="interview-report"] .report-section-title {
+        margin: 0;
+        color: #fff;
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-headline-card {
+        display: flex;
+        gap: 40px;
+        align-items: center;
+        padding: 32px 40px;
+        border-radius: 20px;
+        background: #2a2a2a;
+      }
+      .interview-app [data-screen="interview-report"] .report-headline-score {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: flex-end;
+        gap: 4px;
+        color: var(--pita-cyan);
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-headline-score b {
+        font-size: 56px;
+        line-height: 1;
+      }
+      .interview-app [data-screen="interview-report"] .report-headline-score span {
+        color: #d9d9d9;
+        font-size: 18px;
+        font-weight: 500;
+      }
+      .interview-app [data-screen="interview-report"] .report-headline-body {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .interview-app [data-screen="interview-report"] .report-headline-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        color: #858585;
+        font-size: 14px;
+      }
+      .interview-app [data-screen="interview-report"] .report-headline-meta .sep {
+        width: 1px;
+        height: 12px;
+        background: #474747;
+      }
+      .interview-app [data-screen="interview-report"] .report-headline-summary {
+        margin: 0;
+        color: #fff;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+      .interview-app [data-screen="interview-report"] .report-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-card {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 24px;
+        border-radius: 16px;
+        background: #2a2a2a;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex: 0 0 auto;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-card.is-good .report-fb-dot {
+        background: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-card.is-warn .report-fb-dot {
+        background: #ffb847;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-head strong {
+        font-size: 18px;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-card.is-good .report-fb-head strong {
+        color: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-card.is-warn .report-fb-head strong {
+        color: #ffb847;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-count {
+        margin-left: auto;
+        color: #858585;
+        font-size: 13px;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: #363636;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-item-dot {
+        flex: 0 0 auto;
+        width: 6px;
+        height: 6px;
+        margin-top: 8px;
+        border-radius: 50%;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-card.is-good .report-fb-item-dot {
+        background: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-card.is-warn .report-fb-item-dot {
+        background: #ffb847;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-item p {
+        margin: 0;
+        color: #d9d9d9;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+      .interview-app [data-screen="interview-report"] .report-fb-empty {
+        margin: 0;
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: #363636;
+        color: #858585;
+        font-size: 14px;
+      }
+      .interview-app [data-screen="interview-report"] .report-score-row {
+        display: flex;
+        gap: 12px;
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 16px 20px;
+        border-radius: 12px;
+        background: #363636;
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile-label {
+        color: #858585;
+        font-size: 14px;
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile-value {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 700;
+        font-size: 26px;
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile-value span {
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile-bar {
+        height: 6px;
+        border-radius: 3px;
+        background: #4d4d4d;
+        overflow: hidden;
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile.is-good .report-score-tile-value {
+        color: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile.is-good .report-score-tile-bar-fill {
+        background: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile.is-warn .report-score-tile-value {
+        color: #ffb847;
+      }
+      .interview-app [data-screen="interview-report"] .report-score-tile.is-warn .report-score-tile-bar-fill {
+        background: #ffb847;
+      }
+      .interview-app [data-screen="interview-report"] .report-metric-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .interview-app [data-screen="interview-report"] .report-metric-card {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 28px 32px;
+        border-radius: 16px;
+        background: #2a2a2a;
+      }
+      .interview-app [data-screen="interview-report"] .report-metric-card strong {
+        color: #fff;
+        font-size: 18px;
+      }
+      .interview-app [data-screen="interview-report"] .report-metric-card p.report-metric-desc {
+        margin: 0;
+        color: #d9d9d9;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+      .interview-app [data-screen="interview-report"] .report-metric-tip {
+        display: flex;
+        gap: 12px;
+        padding: 16px 20px;
+        border-radius: 10px;
+        background: #363636;
+      }
+      .interview-app [data-screen="interview-report"] .report-metric-tip-rail {
+        flex: 0 0 auto;
+        width: 3px;
+        border-radius: 2px;
+        background: #ffb847;
+      }
+      .interview-app [data-screen="interview-report"] .report-metric-tip p {
+        margin: 0;
+        color: #ffb847;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-item {
+        border-radius: 12px;
+        background: #363636;
+        overflow: hidden;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-item.has-followup {
+        box-shadow: inset 3px 0 0 var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        padding: 20px 24px;
+        border: 0;
+        background: none;
+        color: #d9d9d9;
+        font-family: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-item.is-followup .report-accordion-header {
+        padding-left: 40px;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-title {
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-item.is-open .report-accordion-title {
+        color: var(--pita-cyan);
+        white-space: normal;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-chevron {
+        flex: 0 0 auto;
+        width: 12px;
+        height: 8px;
+        border: solid #858585;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+        transition: transform 0.16s;
+        margin-bottom: 4px;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-item.is-open .report-accordion-chevron {
+        transform: rotate(-135deg);
+        border-color: var(--pita-cyan);
+        margin-bottom: 0;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-body {
+        display: none;
+        flex-direction: column;
+        gap: 12px;
+        padding: 0 24px 24px;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-item.is-open .report-accordion-body {
+        display: flex;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-answer-label {
+        color: #858585;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-accordion-answer-text {
+        margin: 0;
+        color: #d9d9d9;
+        font-size: 15px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+      .interview-app [data-screen="interview-report"] .report-followup-badge {
+        display: inline-flex;
+        align-self: flex-start;
+        padding: 3px 10px;
+        border-radius: 10px;
+        background: rgba(0, 255, 255, 0.16);
+        color: var(--pita-cyan);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-bottom-bar {
+        position: sticky;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+        padding: 20px 40px;
+        border-top: 1px solid #474747;
+        background: #202020;
+        box-shadow: 0 -6px 9px rgba(0, 0, 0, 0.4);
+      }
+      .interview-app [data-screen="interview-report"] .report-bottom-note {
+        margin: 0;
+        color: #858585;
+        font-size: 14px;
+      }
+      .interview-app [data-screen="interview-report"] .report-bottom-actions {
+        display: flex;
+        gap: 12px;
+        flex: 0 0 auto;
+      }
+      .interview-app [data-screen="interview-report"] .report-btn {
+        height: 52px;
+        padding: 0 28px;
+        border-radius: 14px;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .interview-app [data-screen="interview-report"] .report-btn-ghost {
+        border: 1px solid #474747;
+        background: none;
+        color: #d9d9d9;
+      }
+      .interview-app [data-screen="interview-report"] .report-btn-ghost:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .interview-app [data-screen="interview-report"] .report-btn-primary {
+        border: 0;
+        background: var(--pita-cyan);
+        color: #121212;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-card {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        min-width: 0;
+        padding: 24px 28px;
+        border-radius: 16px;
+        background: #2a2a2a;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-title {
+        margin: 0;
+        color: #d9d9d9;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-sub {
+        margin: 0;
+        color: #858585;
+        font-size: 12px;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-value {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-value b {
+        color: #fff;
+        font-size: 30px;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-diff {
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-diff.is-up {
+        background: rgba(0, 255, 255, 0.18);
+        color: var(--pita-cyan);
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-diff.is-down {
+        background: rgba(255, 184, 71, 0.18);
+        color: #ffb847;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-scale {
+        position: relative;
+        height: 20px;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-track {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 6px;
+        border-radius: 3px;
+        background: #4d4d4d;
+        transform: translateY(-50%);
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-mine {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--pita-cyan);
+        transform: translateY(-50%);
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-mark {
+        position: absolute;
+        top: 0;
+        width: 2px;
+        height: 20px;
+        background: #d9d9d9;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-legend {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-legend .mine {
+        color: var(--pita-cyan);
+        font-weight: 700;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-legend .base {
+        color: #d9d9d9;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-note {
+        display: flex;
+        gap: 12px;
+        padding: 14px 20px;
+        border-radius: 10px;
+        background: #363636;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-note-rail {
+        flex: 0 0 auto;
+        width: 3px;
+        border-radius: 2px;
+        background: #ffb847;
+      }
+      .interview-app [data-screen="interview-report"] .report-compare-note p {
+        margin: 0;
+        color: #858585;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      @media (max-width: 1100px) {
+        .interview-app [data-screen="interview-report"] .report-shell {
+          flex-direction: column;
+        }
+        .interview-app [data-screen="interview-report"] .report-sidebar {
+          position: static;
+          width: 100%;
+          height: auto;
+          overflow-y: visible;
+          flex: 0 0 auto;
+          gap: 16px;
+          padding: 20px 24px;
+        }
+        .interview-app [data-screen="interview-report"] .report-sidebar-top {
+          flex-direction: row;
+          align-items: center;
+          gap: 16px;
+        }
+        .interview-app [data-screen="interview-report"] .report-sidebar-logo {
+          flex: 0 0 auto;
+          font-size: 30px;
+        }
+        .interview-app [data-screen="interview-report"] .report-session-card {
+          flex: 1 1 0;
+          min-width: 0;
+        }
+        .interview-app [data-screen="interview-report"] .report-section-nav {
+          flex-direction: row;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .interview-app [data-screen="interview-report"] .report-nav-item {
+          flex: 0 0 auto;
+          white-space: nowrap;
+        }
+        .interview-app [data-screen="interview-report"] #report-dashboard-root {
+          padding: 24px 24px 40px;
+        }
+        .interview-app [data-screen="interview-report"] .report-grid-2,
+        .interview-app [data-screen="interview-report"] .report-compare-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 720px) {
+        .interview-app [data-screen="interview-report"] .report-headline-card {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 16px;
+          padding: 24px;
+        }
+        .interview-app [data-screen="interview-report"] .report-score-row {
+          flex-direction: column;
+        }
+        .interview-app [data-screen="interview-report"] #report-dashboard-root {
+          padding: 20px 16px 32px;
+        }
+        .interview-app [data-screen="interview-report"] .report-bottom-bar {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 12px;
+          padding: 16px 20px;
+        }
+        .interview-app [data-screen="interview-report"] .report-bottom-actions {
+          flex-direction: column;
+        }
+        .interview-app [data-screen="interview-report"] .report-btn {
+          width: 100%;
+        }
+      }
     </style>
   </head>
   <body class="flow-app interview-app">
+    <header class="app-topbar">
+      <a class="app-topbar-logo" href="./index.html" aria-label="PITA">PITA</a>
+      <ol class="app-topbar-steps" id="app-topbar-steps">
+        <li class="app-topbar-step" data-topbar-step="1">
+          <span class="app-topbar-step-badge">1</span>
+          <span class="app-topbar-step-label">정보 입력</span>
+        </li>
+        <li class="app-topbar-sep" data-topbar-sep="1"></li>
+        <li class="app-topbar-step" data-topbar-step="2">
+          <span class="app-topbar-step-badge">2</span>
+          <span class="app-topbar-step-label">면접 설정</span>
+        </li>
+        <li class="app-topbar-sep" data-topbar-sep="2"></li>
+        <li class="app-topbar-step" data-topbar-step="3">
+          <span class="app-topbar-step-badge">3</span>
+          <span class="app-topbar-step-label">예상 질문</span>
+        </li>
+        <li class="app-topbar-sep" data-topbar-sep="3"></li>
+        <li class="app-topbar-step" data-topbar-step="4">
+          <span class="app-topbar-step-badge">4</span>
+          <span class="app-topbar-step-label">모의면접</span>
+        </li>
+        <li class="app-topbar-sep" data-topbar-sep="4"></li>
+        <li class="app-topbar-step" data-topbar-step="5">
+          <span class="app-topbar-step-badge">5</span>
+          <span class="app-topbar-step-label">리포트</span>
+        </li>
+      </ol>
+    </header>
     <main class="flow-shell">
-      <a class="flow-logo" href="./index.html" aria-label="PITA">PITA</a>
-
       <div class="flow-status" id="connectionPill">
         <span class="status-dot" aria-hidden="true"></span>
         <span id="connectionText">AI 대기</span>
       </div>
 
+      <div id="apiNotice" hidden>
+        <span id="apiNoticeText"></span>
+        <button id="retryButton" type="button" hidden>AI 재시도</button>
+      </div>
+
       <section class="flow-screen is-active" data-screen="interview-upload" aria-labelledby="interview-upload-title">
         <h1 class="flow-heading" id="interview-upload-title">
-          면접 준비를 위해<br />관련 자료를 공유해주세요
+          <strong>이력서/포트폴리오/자기소개서</strong> 등을 공유해주세요
         </h1>
         <div class="flow-screen-body">
-          <h2 class="flow-section-title">면접 자료</h2>
-          <div class="upload-box">
-            <strong>이력서(포트폴리오) 또는 자기소개서를 공유해주세요.</strong>
-            <p>pdf(추천), pptx, doc, png, txt, md (최대 50MB · 최대 3개)</p>
-            <label class="upload-trigger" for="resumeFile">파일 첨부</label>
-            <p class="upload-tip">자세하게 작성된 내용일수록 정확도가 올라가요 <b>UP</b></p>
-            <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.ppt,.pptx,.doc,.docx,.png" multiple hidden />
+          <div id="interview-upload-dropzone">
+            <button class="upload-trigger" id="interview-upload-trigger" type="button">파일 첨부</button>
+            <div class="upload-box" id="interview-drop-zone">
+              <div class="upload-box-row">
+                <img class="upload-box-icon" src="./assets/images/icon-drive-folder-upload.svg" alt="" />
+                <span>파일을 마우스로 끌어오세요</span>
+              </div>
+              <p>(최대 50MB · 최대 3개)</p>
+            </div>
+            <p class="upload-tip">자세하게 작성된 내용일수록 상세하게 분석해요 <b>UP</b></p>
           </div>
+          <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.ppt,.pptx,.doc,.docx,.png" multiple hidden />
           <div class="interview-uploaded-files" id="interview-file-list" hidden>
+            <h2 class="flow-section-title">첨부 파일</h2>
             <div id="interview-file-rows"></div>
             <label class="interview-file-add" id="interview-file-add" for="resumeFile">+ 파일 추가</label>
-          </div>
-          <div class="interview-company-section" id="interview-company-section" hidden>
-            <h2 class="flow-section-title">지원회사 및 인재상(면접 기준표) 입력</h2>
-            <p class="calibration-copy">없어도 괜찮아요. 회사명과 직무를 입력하면 자동으로 입력해 드릴게요.</p>
-            <textarea
-              class="flow-textarea"
-              id="companyInfoInput"
-              rows="5"
-              placeholder="지원 회사명, 직무, 인재상 또는 평가 기준을 입력하세요."
-            ></textarea>
           </div>
         </div>
         <div class="flow-nav">
@@ -101,255 +1680,317 @@
       </section>
 
       <section class="flow-screen" data-screen="interview-job" aria-labelledby="interview-job-title">
-        <h1 class="flow-heading" id="interview-job-title">직무를 선택해주세요</h1>
+        <h1 class="flow-heading" id="interview-job-title">지원하고자 하는 회사와 직무를 선택해주세요</h1>
         <div class="flow-screen-body">
-          <label class="flow-field" for="roleInput">
-            <span>직무</span>
-            <input
-              class="flow-input"
-              id="roleInput"
-              type="text"
-              list="role-options"
-              value="서비스 기획 인턴"
-              placeholder="지원 직무를 입력하거나 선택해주세요"
-            />
-            <datalist id="role-options">
-              <option value="기획"></option>
-              <option value="디자인"></option>
-              <option value="개발"></option>
-              <option value="마케팅"></option>
-              <option value="영업"></option>
-              <option value="공무원"></option>
-            </datalist>
-          </label>
-          <div class="role-preset-grid" aria-label="직무 유형 빠른 선택">
-            <button type="button" data-role-preset="기획">기획</button>
-            <button type="button" data-role-preset="개발">개발</button>
-            <button type="button" data-role-preset="디자인">디자인</button>
-            <button type="button" data-role-preset="마케팅">마케팅</button>
-            <button type="button" data-role-preset="공무원">공무원</button>
+          <div class="job-select-files" id="interview-job-file-preview" hidden>
+            <h2 class="flow-section-title">첨부 파일</h2>
+            <div id="interview-job-file-rows"></div>
+          </div>
+
+          <div class="autocomplete-field" data-field="company">
+            <div class="autocomplete-label">
+              <span>지원 회사</span>
+              <span class="required-tag">필수</span>
+            </div>
+            <div class="autocomplete-input-wrap">
+              <img class="ac-icon ac-icon-left-search" src="./assets/images/icon-search.svg" alt="" hidden />
+              <img class="ac-icon ac-icon-left-category" src="./assets/images/icon-location-city.svg" alt="" hidden />
+              <input class="autocomplete-input" id="companyInput" type="text" autocomplete="off" placeholder="회사명을 입력하세요" />
+              <button type="button" class="ac-icon ac-clear" aria-label="입력 지우기" hidden>
+                <img src="./assets/images/icon-cancel.svg" alt="" />
+              </button>
+              <img class="ac-icon ac-icon-right-search" src="./assets/images/icon-search.svg" alt="" />
+              <ul class="autocomplete-dropdown" hidden></ul>
+            </div>
+            <div class="chip-row">
+              <button type="button" class="chip" data-chip-value="네이버">네이버</button>
+              <button type="button" class="chip" data-chip-value="카카오">카카오</button>
+              <button type="button" class="chip" data-chip-value="라인">라인</button>
+              <button type="button" class="chip" data-chip-value="쿠팡">쿠팡</button>
+              <button type="button" class="chip" data-chip-value="배달의민족">배달의민족</button>
+              <button type="button" class="chip" data-chip-value="당근">당근</button>
+              <button type="button" class="chip" data-chip-value="토스">토스</button>
+            </div>
+          </div>
+
+          <div class="autocomplete-field" data-field="role">
+            <div class="autocomplete-label">
+              <span>희망 직무</span>
+              <span class="required-tag">필수</span>
+            </div>
+            <div class="autocomplete-input-wrap">
+              <img class="ac-icon ac-icon-left-search" src="./assets/images/icon-search.svg" alt="" hidden />
+              <img class="ac-icon ac-icon-left-category" src="./assets/images/icon-business-center.svg" alt="" hidden />
+              <input class="autocomplete-input" id="roleInput" type="text" autocomplete="off" placeholder="희망하는 직무를 입력하세요" />
+              <button type="button" class="ac-icon ac-clear" aria-label="입력 지우기" hidden>
+                <img src="./assets/images/icon-cancel.svg" alt="" />
+              </button>
+              <img class="ac-icon ac-icon-right-search" src="./assets/images/icon-search.svg" alt="" />
+              <ul class="autocomplete-dropdown" hidden></ul>
+            </div>
+            <div class="chip-row">
+              <button type="button" class="chip" data-chip-value="기획/PM">기획/PM</button>
+              <button type="button" class="chip" data-chip-value="디자인">디자인</button>
+              <button type="button" class="chip" data-chip-value="프론트엔드">프론트엔드</button>
+              <button type="button" class="chip" data-chip-value="백엔드">백엔드</button>
+              <button type="button" class="chip" data-chip-value="데이터">데이터</button>
+              <button type="button" class="chip" data-chip-value="마케팅">마케팅</button>
+            </div>
           </div>
         </div>
         <div class="flow-nav">
           <button class="flow-button" type="button" data-go="interview-upload">이전</button>
-          <button class="flow-button flow-button-primary" type="button" data-go="interview-persona">다음</button>
-        </div>
-      </section>
-
-      <section class="flow-screen" data-screen="interview-persona" aria-labelledby="interview-persona-title">
-        <h1 class="flow-heading" id="interview-persona-title">면접관 유형을 선택해주세요.</h1>
-        <div class="flow-screen-body persona-body">
-          <select class="sr-only" id="personaInput" tabindex="-1" aria-hidden="true">
-            <option value="">면접관 유형을 선택해주세요</option>
-            <option value="hr">인사담당자</option>
-            <option value="field">실무 팀장</option>
-            <option value="pressure">압박 면접관</option>
-            <option value="executive">임원 면접관</option>
-          </select>
-          <div class="persona-grid" role="radiogroup" aria-label="면접관 유형 선택">
-            <button class="persona-card" type="button" data-interview-persona="hr" aria-pressed="false">
-              <img src="./assets/images/persona-team.png" alt="" />
-              <strong>인사담당자</strong>
-              <span>지원 동기·가치관·팀 적합도를 꼼꼼하게 검증</span>
-            </button>
-            <button class="persona-card" type="button" data-interview-persona="field" aria-pressed="false">
-              <img src="./assets/images/persona-audience.png" alt="" />
-              <strong>실무 팀장</strong>
-              <span>업무 역량과 현장 문제 해결 방식을 중심으로 검증</span>
-            </button>
-            <button class="persona-card" type="button" data-interview-persona="pressure" aria-pressed="false">
-              <img src="./assets/images/persona-professor.png" alt="" />
-              <strong>압박 면접관</strong>
-              <span>꼬리질문과 반론으로 압박하며 위기 대처 능력을 검증</span>
-            </button>
-            <button class="persona-card" type="button" data-interview-persona="executive" aria-pressed="false">
-              <img src="./assets/images/persona-investor.png" alt="" />
-              <strong>임원 면접관</strong>
-              <span>성장 가능성·리더십·비전을 거시적 관점에서 검증</span>
-            </button>
-          </div>
-        </div>
-        <div class="flow-nav">
-          <button class="flow-button" type="button" data-go="interview-job">이전</button>
-          <button class="flow-button flow-button-primary" id="interview-persona-next" type="button" data-go="interview-setup" disabled>다음</button>
+          <button class="flow-button flow-button-primary" id="interview-job-next" type="button" data-go="interview-setup" disabled>다음</button>
         </div>
       </section>
 
       <section class="flow-screen" data-screen="interview-setup" aria-labelledby="interview-setup-title">
-        <h1 class="flow-heading" id="interview-setup-title">면접 유형/목적을 선택해주세요</h1>
+        <h1 class="flow-heading" id="interview-setup-title">면접 유형과 목적을 선택해주세요</h1>
         <div class="flow-screen-body">
-          <label class="flow-field" for="interview-type">
-            <span>면접 유형</span>
-            <select class="flow-select" id="interview-type">
-              <option value="">준비하고자 하는 면접의 유형을 선택해주세요</option>
-              <option value="one-on-one">일대일 면접</option>
-              <option value="panel">다대일 면접</option>
-              <option value="group">다대다 면접</option>
-              <option value="ai">AI 면접</option>
-              <option value="presentation">PT 면접</option>
-            </select>
-          </label>
+          <select class="sr-only" id="interview-type" tabindex="-1" aria-hidden="true">
+            <option value="">준비하고자 하는 면접의 유형을 선택해주세요</option>
+            <option value="field">실무 면접</option>
+            <option value="executive">임원 면접</option>
+            <option value="pt">PT/과제 면접</option>
+          </select>
 
-          <div class="flow-field">
-            <span>준비 목적</span>
-            <div class="choice-grid" role="radiogroup" aria-label="면접 준비 목적">
-              <button class="choice-card-small is-selected" type="button" data-interview-branch="questions" aria-pressed="true">
-                예상 질문 리스트 업
+          <div class="setup-field-group">
+            <p class="setup-field-title">면접 유형</p>
+            <div class="interview-type-grid" role="radiogroup" aria-label="면접 유형">
+              <button class="interview-type-card" type="button" data-interview-type-value="field" aria-pressed="false">
+                <strong>실무 면접</strong>
+                <span>직무 역량/기술<br />프로젝트 경험</span>
               </button>
-              <button class="choice-card-small" type="button" data-interview-branch="practice" aria-pressed="false">
+              <button class="interview-type-card" type="button" data-interview-type-value="executive" aria-pressed="false">
+                <strong>임원 면접</strong>
+                <span>컬처핏<br />성장 계획</span>
+              </button>
+              <button class="interview-type-card" type="button" data-interview-type-value="pt" aria-pressed="false">
+                <strong>PT/과제 면접</strong>
+                <span>발표 구성력<br />질의응답 방어</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="setup-field-group">
+            <p class="setup-field-title">준비 목적</p>
+            <div class="purpose-grid" role="radiogroup" aria-label="면접 준비 목적">
+              <button class="purpose-card is-selected" type="button" data-interview-branch="questions" aria-pressed="true">
+                예상 질문 리스트업
+              </button>
+              <button class="purpose-card" type="button" data-interview-branch="practice" aria-pressed="false">
                 면접 연습
               </button>
             </div>
           </div>
 
-          <details class="interview-extra-panel">
-            <summary>꼬리질문 강도 설정</summary>
-            <div class="flow-field">
-              <span>꼬리질문 강도 <output id="depthOutput" for="depthInput">3</output></span>
-              <input id="depthInput" type="range" min="1" max="5" value="3" />
+          <div class="setup-field-group" id="depth-field-group">
+            <p class="setup-field-title">꼬리질문 강도</p>
+            <div class="depth-slider">
+              <div class="depth-track"><div class="depth-track-fill" id="depth-track-fill"></div></div>
+              <div class="depth-ticks">
+                <button type="button" class="depth-tick" data-depth-value="1">
+                  <span class="depth-tick-dot"></span>
+                  <span class="depth-tick-num">1</span>
+                  <span class="depth-tick-label">편안하게</span>
+                </button>
+                <button type="button" class="depth-tick" data-depth-value="2">
+                  <span class="depth-tick-dot"></span>
+                  <span class="depth-tick-num">2</span>
+                  <span class="depth-tick-label">가볍게</span>
+                </button>
+                <button type="button" class="depth-tick is-active" data-depth-value="3">
+                  <span class="depth-tick-dot"></span>
+                  <span class="depth-tick-num">3</span>
+                  <span class="depth-tick-label">실전처럼</span>
+                </button>
+                <button type="button" class="depth-tick" data-depth-value="4">
+                  <span class="depth-tick-dot"></span>
+                  <span class="depth-tick-num">4</span>
+                  <span class="depth-tick-label">깐깐하게</span>
+                </button>
+                <button type="button" class="depth-tick" data-depth-value="5">
+                  <span class="depth-tick-dot"></span>
+                  <span class="depth-tick-num">5</span>
+                  <span class="depth-tick-label">압박감 있게</span>
+                </button>
+              </div>
             </div>
-          </details>
+            <input id="depthInput" type="range" min="1" max="5" value="3" class="sr-only" tabindex="-1" aria-hidden="true" />
+            <output id="depthOutput" for="depthInput" class="sr-only">3</output>
+          </div>
         </div>
         <div class="flow-nav">
-          <button class="flow-button" type="button" data-go="interview-persona">이전</button>
+          <button class="flow-button" type="button" data-go="interview-job">이전</button>
           <button class="flow-button flow-button-primary" id="interview-setup-next" type="button" disabled>다음</button>
         </div>
       </section>
 
-      <section class="flow-screen" data-screen="questions-loading" aria-labelledby="questions-loading-title">
-        <h1 class="flow-heading" id="questions-loading-title">AI가 내용을 분석하고 있어요</h1>
-        <div class="loading-figure">
-          <img src="./assets/images/analysis-mascot.png" alt="분석 중인 PITA 캐릭터" />
-          <img class="loading-dots" src="./assets/images/loading-dots.svg" alt="" />
-        </div>
-      </section>
-
-      <section class="flow-screen" data-screen="questions-report" aria-labelledby="questions-report-title">
-        <h1 class="flow-heading" id="questions-report-title">분석을 완료했어요</h1>
-        <div class="flow-report">
-          <div class="report-meta-row">
-            <strong>1번 말</strong>
-            <span id="questions-persona-label">차분한 구조화 면접관</span>
-          </div>
-          <div class="report-card-flow">
-            <h2>종합 피드백</h2>
-            <div id="expected-questions-content">
-              <p class="result-placeholder">예상 질문을 준비하고 있어요.</p>
+      <section class="flow-screen" data-screen="interview-ready" aria-labelledby="interview-ready-title">
+        <h1 class="flow-heading" id="interview-ready-title">면접 연습 준비가 끝났어요</h1>
+        <div class="flow-screen-body">
+          <div class="ready-summary-card">
+            <div class="ready-summary-row">
+              <span>지원 회사</span>
+              <strong id="ready-summary-company">-</strong>
+            </div>
+            <div class="ready-summary-row">
+              <span>희망 직무</span>
+              <strong id="ready-summary-role">-</strong>
+            </div>
+            <div class="ready-summary-row">
+              <span>면접 유형</span>
+              <strong id="ready-summary-type">-</strong>
+            </div>
+            <div class="ready-summary-row">
+              <span>꼬리질문 강도</span>
+              <strong id="ready-summary-depth">-</strong>
+            </div>
+            <div class="ready-summary-row">
+              <span>예상 소요 시간</span>
+              <strong id="ready-summary-duration">약 10분</strong>
             </div>
           </div>
         </div>
         <div class="flow-nav">
+          <button class="flow-button" type="button" data-go="interview-setup">설정 변경</button>
+          <button class="flow-button flow-button-primary" id="startButton" type="button" data-go="interview-practice">모의면접 시작</button>
+        </div>
+      </section>
+
+      <section class="flow-screen" data-screen="questions-loading" aria-labelledby="questions-loading-title">
+        <h1 class="flow-heading" id="questions-loading-title">AI가 분석하고 있어요</h1>
+        <div class="loading-figure">
+          <img src="./assets/images/analysis-mascot.png" alt="분석 중인 PITA 캐릭터" />
+        </div>
+        <div class="loading-checklist">
+          <div class="loading-checklist-progress">
+            <div class="loading-checklist-progress-fill" id="questions-loading-rail-fill"></div>
+          </div>
+          <div class="loading-checklist-steps">
+            <div class="loading-checklist-step" data-step="1">
+              <span class="loading-checklist-dot" aria-hidden="true"></span>
+              <span class="loading-checklist-label">파일 정리</span>
+              <span class="loading-checklist-status">대기</span>
+            </div>
+            <div class="loading-checklist-step" data-step="2">
+              <span class="loading-checklist-dot" aria-hidden="true"></span>
+              <span class="loading-checklist-label">문장 구조 분석</span>
+              <span class="loading-checklist-status">대기</span>
+            </div>
+            <div class="loading-checklist-step" data-step="3">
+              <span class="loading-checklist-dot" aria-hidden="true"></span>
+              <span class="loading-checklist-label">논리 구조 분석</span>
+              <span class="loading-checklist-status">대기</span>
+            </div>
+            <div class="loading-checklist-step" data-step="4">
+              <span class="loading-checklist-dot" aria-hidden="true"></span>
+              <span class="loading-checklist-label">예상 질문 생성</span>
+              <span class="loading-checklist-status">대기</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="flow-screen" data-screen="questions-report" aria-labelledby="questions-report-title">
+        <h1 class="flow-heading" id="questions-report-title">예상 질문을 준비했어요</h1>
+        <div class="flow-screen-body">
+          <p class="questions-report-subtitle" id="questions-report-subtitle"></p>
+          <div class="questions-report-chips" id="questions-report-chips"></div>
+          <div class="questions-report-accordion" id="expected-questions-content"></div>
+        </div>
+        <div class="flow-nav">
           <button class="flow-button" type="button" data-go="interview-setup">이전</button>
-          <button class="flow-button flow-button-primary" type="button" data-go="interview-environment">
+          <button class="flow-button flow-button-primary" type="button" data-go="interview-ready">
             면접 연습 이어가기
           </button>
         </div>
       </section>
 
-      <section class="flow-screen" data-screen="interview-environment" aria-labelledby="interview-environment-title">
-        <h1 class="flow-heading" id="interview-environment-title">주변 환경을 분석해볼게요</h1>
-        <div class="flow-screen-body">
-          <div class="check-stage">
-            <video id="interview-check-video" autoplay muted playsinline></video>
-            <div class="check-placeholder" id="interview-check-placeholder">환경 체크</div>
-          </div>
-          <div class="check-actions">
-            <button class="flow-button" id="interview-mic-check" type="button">🎙 마이크 체크</button>
-            <button class="flow-button" id="interview-speaker-check" type="button">🔊 스피커 체크</button>
-          </div>
-          <p class="calibration-copy" id="interview-check-status">
-            정면을 바라보고 화면 안에 얼굴이 들어오도록 맞춰주세요.
-          </p>
-          <p class="calibration-copy"><strong>"낮말은 새가 듣고, 밤말은 쥐가 듣는다."</strong></p>
-        </div>
-        <div class="flow-nav">
-          <button class="flow-button" type="button" data-go="interview-setup">이전</button>
-          <button class="flow-button flow-button-primary" id="startButton" type="button">다음</button>
-        </div>
-      </section>
-
       <section class="flow-screen" data-screen="interview-practice" aria-labelledby="interview-practice-title">
-        <h1 class="flow-heading" id="interview-practice-title">이제 모의면접을 진행할게요</h1>
+        <h1 class="sr-only" id="interview-practice-title">모의면접 진행 중</h1>
         <div class="flow-screen-body practice-wide">
-          <section class="interview-practice-grid">
-            <div class="interviewer-panel-flow">
-              <div class="interviewer-head-flow">
-                <div class="avatar-flow" aria-hidden="true">AI</div>
-                <div>
-                  <strong id="conversationTitle">가상 면접관</strong>
-                  <p id="personaSummary">설정을 완료하고 면접을 시작하세요.</p>
-                </div>
-                <div class="session-metrics-flow">
-                  <span><b id="turnMetric">0</b> 답변</span>
-                  <span><b id="fillerMetric">0</b> 추임새</span>
-                  <span><b id="voiceMetric">ON</b> 음성</span>
-                </div>
+          <div class="practice-camera-stage" id="cameraStage">
+            <video id="cameraPreview" autoplay muted playsinline></video>
+            <div class="practice-rec-badge">
+              <span class="practice-rec-dot" aria-hidden="true"></span>
+              <span id="practiceSessionTimer">00:00</span>
+            </div>
+          </div>
+
+          <div class="practice-question-card">
+            <p class="practice-question-tag" id="practiceQuestionTag">Q1</p>
+            <p class="practice-question-text" id="practiceQuestionText">면접을 준비하고 있어요…</p>
+          </div>
+
+          <div class="practice-transcript-panel">
+            <p class="practice-transcript-text" id="practiceTranscriptText">
+              답변을 시작하면 여기에 실시간으로 표시됩니다.
+            </p>
+            <div class="practice-transcript-footer">
+              <span class="practice-answer-timer" id="practiceAnswerTimer">00:00</span>
+              <span class="practice-answering-chip" id="practiceAnsweringChip" hidden>
+                <span class="practice-wave" aria-hidden="true"><span></span><span></span><span></span></span>
+                답변 중
+              </span>
+            </div>
+          </div>
+
+          <div class="practice-actions">
+            <button type="button" id="practiceEndButton" class="practice-btn practice-btn-ghost">종료</button>
+            <div class="practice-actions-right">
+              <button type="button" id="practiceRetryButton" class="practice-btn practice-btn-ghost">다시 답변</button>
+              <button type="button" id="practiceNextButton" class="practice-btn practice-btn-primary">답변 완료</button>
+            </div>
+          </div>
+
+          <!-- 아래는 화면에 보이지 않지만, 카메라 비언어 분석·리포트 생성 등 기존 로직이 계속 동작하기 위해 유지되는 요소들 -->
+          <div class="sr-only" aria-hidden="true">
+            <form id="answerForm">
+              <label for="answerInput">답변 직접 입력</label>
+              <textarea id="answerInput"></textarea>
+              <button id="sendButton" type="submit">전송</button>
+            </form>
+            <div class="avatar-flow">AI</div>
+            <strong id="conversationTitle">가상 면접관</strong>
+            <p id="personaSummary">설정을 완료하고 면접을 시작하세요.</p>
+            <div class="session-metrics-flow">
+              <span><b id="turnMetric">0</b> 답변</span>
+              <span><b id="fillerMetric">0</b> 추임새</span>
+              <span><b id="voiceMetric">ON</b> 음성</span>
+            </div>
+            <div class="camera-placeholder-flow" id="cameraPlaceholder">CAM</div>
+            <div class="camera-status-flow" id="cameraStatus">카메라 대기 중</div>
+            <button id="cameraButton" type="button">카메라 켜기</button>
+            <span class="camera-chip-flow" id="cameraMode">대기</span>
+            <div class="metric-bars-flow">
+              <div class="metric-row-flow">
+                <span>시선 <b id="eyeScore">--</b></span>
+                <div class="metric-track"><div class="metric-fill" id="eyeBar"></div></div>
               </div>
-
-              <div class="camera-lab-flow">
-                <div class="camera-stage-flow" id="cameraStage">
-                  <video id="cameraPreview" autoplay muted playsinline></video>
-                  <div class="camera-placeholder-flow" id="cameraPlaceholder">CAM</div>
-                  <div class="camera-status-flow" id="cameraStatus">카메라 대기 중</div>
-                </div>
-                <div class="practice-controls">
-                  <button id="cameraButton" type="button">카메라 켜기</button>
-                  <span class="camera-chip-flow" id="cameraMode">대기</span>
-                </div>
-
-                <div class="metric-bars-flow">
-                  <div class="metric-row-flow">
-                    <span>시선 <b id="eyeScore">--</b></span>
-                    <div class="metric-track"><div class="metric-fill" id="eyeBar"></div></div>
-                  </div>
-                  <div class="metric-row-flow">
-                    <span>자세 <b id="postureScore">--</b></span>
-                    <div class="metric-track"><div class="metric-fill" id="postureBar"></div></div>
-                  </div>
-                  <div class="metric-row-flow">
-                    <span>표정 <b id="expressionScore">--</b></span>
-                    <div class="metric-track"><div class="metric-fill" id="expressionBar"></div></div>
-                  </div>
-                  <div class="metric-row-flow">
-                    <span>제스처 <b id="gestureScore">--</b></span>
-                    <div class="metric-track"><div class="metric-fill" id="gestureBar"></div></div>
-                  </div>
-                </div>
-                <ul class="event-log-flow" id="signalFeed">
-                  <li>카메라를 켜면 비언어 신호가 표시됩니다.</li>
-                </ul>
+              <div class="metric-row-flow">
+                <span>자세 <b id="postureScore">--</b></span>
+                <div class="metric-track"><div class="metric-fill" id="postureBar"></div></div>
               </div>
-
-              <ol class="chat-log-flow" id="chatLog" aria-live="polite">
-                <li class="message ai">
-                  <span class="message-label">AI 면접관</span>
-                  <div class="message-bubble">면접을 시작하면 첫 질문을 드립니다.</div>
-                </li>
-              </ol>
-
-              <div class="answer-zone-flow">
-                <div class="speech-row-flow">
-                  <button id="micButton" type="button" disabled>REC</button>
-                  <div id="liveTranscript">음성 인식 대기 중</div>
-                  <button id="voiceToggle" type="button" aria-pressed="true">음성 출력 ON</button>
-                </div>
-                <form class="answer-form-flow" id="answerForm">
-                  <label class="sr-only" for="answerInput">답변 입력</label>
-                  <textarea
-                    id="answerInput"
-                    placeholder="음성 인식이 어렵다면 답변을 직접 입력하세요."
-                    disabled
-                  ></textarea>
-                  <button id="sendButton" type="submit" disabled>전송</button>
-                </form>
+              <div class="metric-row-flow">
+                <span>표정 <b id="expressionScore">--</b></span>
+                <div class="metric-track"><div class="metric-fill" id="expressionBar"></div></div>
               </div>
-
-              <div class="practice-controls">
-                <button class="primary" id="reportButton" type="button" disabled>면접 종료 및 분석</button>
-                <button id="resetButton" type="button">초기화</button>
+              <div class="metric-row-flow">
+                <span>제스처 <b id="gestureScore">--</b></span>
+                <div class="metric-track"><div class="metric-fill" id="gestureBar"></div></div>
               </div>
             </div>
-          </section>
+            <ul class="event-log-flow" id="signalFeed">
+              <li data-placeholder>연습을 시작하면 감지 로그가 표시됩니다.</li>
+            </ul>
+            <ol class="chat-log-flow" id="chatLog" aria-live="polite"></ol>
+            <button id="micButton" type="button">REC</button>
+            <div id="liveTranscript">음성 인식 대기 중</div>
+            <button id="voiceToggle" type="button" aria-pressed="true">음성 출력 ON</button>
+            <button class="primary" id="reportButton" type="button" disabled>면접 종료 및 분석</button>
+            <button id="resetButton" type="button">초기화</button>
+          </div>
         </div>
       </section>
 
@@ -363,23 +2004,63 @@
       </section>
 
       <section class="flow-screen" data-screen="interview-report" aria-labelledby="interview-report-title">
-        <h1 class="sr-only" id="interview-report-title">분석을 완료했어요</h1>
-        <div id="apiNotice" hidden></div>
-        <button id="retryButton" type="button" hidden>AI 재시도</button>
-        <div id="report-dashboard-root"></div>
-        <button id="shareReportButton" type="button" hidden disabled>링크 공유</button>
-        <button id="interview-restart" type="button" hidden>처음부터 다시</button>
+        <h1 class="sr-only" id="interview-report-title">종합 리포트</h1>
+
+        <div class="report-shell">
+          <aside class="report-sidebar">
+            <div class="report-sidebar-top">
+              <a class="report-sidebar-logo" href="./index.html" aria-label="PITA">PITA</a>
+              <div class="report-session-card">
+                <p class="report-session-label">이번 세션</p>
+                <p class="report-session-main" id="reportSessionMain">-</p>
+                <p class="report-session-sub" id="reportSessionSub">-</p>
+              </div>
+            </div>
+            <nav class="report-section-nav" id="reportSectionNav">
+              <button type="button" class="report-nav-item is-active" data-report-section="summary">
+                <span class="report-nav-mark"></span>종합 피드백
+              </button>
+              <button type="button" class="report-nav-item" data-report-section="content">
+                <span class="report-nav-mark"></span>내용 분석
+              </button>
+              <button type="button" class="report-nav-item" data-report-section="questions">
+                <span class="report-nav-mark"></span>질문별 상세
+              </button>
+              <button type="button" class="report-nav-item" data-report-section="nonverbal">
+                <span class="report-nav-mark"></span>비언어 분석
+              </button>
+            </nav>
+          </aside>
+
+          <div class="report-main" id="reportMain">
+            <div id="report-dashboard-root"></div>
+
+            <div class="report-bottom-bar">
+              <p class="report-bottom-note">세션은 새로고침하면 사라집니다. 리포트를 저장해 두는 편이 좋습니다.</p>
+              <div class="report-bottom-actions">
+                <button id="shareReportButton" type="button" class="report-btn report-btn-ghost" disabled>공유하기</button>
+                <button id="interview-restart" type="button" class="report-btn report-btn-primary">다시 연습하기</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- getProfile()에서 참조하는 데이터 컨테이너 (UI 미노출) -->
       <div hidden aria-hidden="true">
-        <input id="companyInput" type="text" />
         <textarea id="talentInput"></textarea>
+        <select id="personaInput">
+          <option value="hr">인사담당자</option>
+          <option value="field" selected>실무 팀장</option>
+          <option value="pressure">압박 면접관</option>
+          <option value="executive">임원 면접관</option>
+        </select>
       </div>
     </main>
 
     <script src="./assets/js/ai-client.js"></script>
     <script src="./assets/js/interview.js"></script>
+    <script src="./assets/js/company-role-search.js"></script>
     <script src="./assets/js/interview-flow.js"></script>
   </body>
 </html>

@@ -94,13 +94,26 @@ const state = {
   ttsCancel: null,
   ttsWarmPromise: null,
   ttsWarmed: false,
+  expectedQuestions: [],
+  practiceQueue: [],
+  practiceActive: false,
+  practiceCurrentItem: null,
+  practiceCurrentQueueIndex: -1,
+  practiceFollowupUsed: null,
+  practiceListening: false,
+  practiceRecognition: null,
+  practiceTranscriptFinal: "",
+  practiceSessionStartedAt: null,
+  practiceSessionTimerId: null,
+  practiceAnswerStartedAt: null,
+  practiceAnswerTimerId: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
   resumeFile: $("#resumeFile"),
-  fileName: $("#fileName"),
+  fileName: $("#fileName") || { textContent: "" },
   companyInput: $("#companyInput"),
   roleInput: $("#roleInput"),
   talentInput: $("#talentInput"),
@@ -120,7 +133,12 @@ const elements = {
   shareReportButton: $("#shareReportButton"),
   resetButton: $("#resetButton"),
   apiNotice: $("#apiNotice"),
+  apiNoticeText: $("#apiNoticeText"),
   reportDashboardRoot: $("#report-dashboard-root"),
+  reportSessionMain: $("#reportSessionMain"),
+  reportSessionSub: $("#reportSessionSub"),
+  reportSectionNav: $("#reportSectionNav"),
+  reportMain: $("#reportMain"),
   loadingStatus: $("#interview-loading-status"),
   personaSummary: $("#personaSummary"),
   turnMetric: $("#turnMetric"),
@@ -142,6 +160,15 @@ const elements = {
   postureBar: $("#postureBar"),
   expressionBar: $("#expressionBar"),
   gestureBar: $("#gestureBar"),
+  practiceQuestionTag: $("#practiceQuestionTag"),
+  practiceQuestionText: $("#practiceQuestionText"),
+  practiceTranscriptText: $("#practiceTranscriptText"),
+  practiceAnswerTimer: $("#practiceAnswerTimer"),
+  practiceAnsweringChip: $("#practiceAnsweringChip"),
+  practiceSessionTimer: $("#practiceSessionTimer"),
+  practiceEndButton: $("#practiceEndButton"),
+  practiceRetryButton: $("#practiceRetryButton"),
+  practiceNextButton: $("#practiceNextButton"),
 };
 
 function escapeHtml(value) {
@@ -187,7 +214,7 @@ function getReadableError(error) {
 
 function showApiNotice(message, retryFn = null) {
   elements.apiNotice.hidden = false;
-  elements.apiNotice.textContent = `${message} 세션 데이터는 유지됩니다. AI 재시도 버튼을 눌러 다시 연결해 보세요.`;
+  elements.apiNoticeText.textContent = `${message} 세션 데이터는 유지됩니다. AI 재시도 버튼을 눌러 다시 연결해 보세요.`;
   state.pendingRetry = retryFn;
   elements.retryButton.hidden = !retryFn;
   persistSession();
@@ -195,7 +222,7 @@ function showApiNotice(message, retryFn = null) {
 
 function hideApiNotice() {
   elements.apiNotice.hidden = true;
-  elements.apiNotice.textContent = "";
+  elements.apiNoticeText.textContent = "";
   state.pendingRetry = null;
   elements.retryButton.hidden = true;
 }
@@ -265,6 +292,7 @@ function persistSession() {
     silenceEvents: state.silenceEvents,
     lastReport: state.lastReport,
     activeReportTab: state.activeReportTab,
+    expectedQuestions: state.expectedQuestions,
   };
   try {
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
@@ -318,6 +346,7 @@ function restoreSession() {
     state.silenceEvents = saved.silenceEvents || [];
     state.lastReport = saved.lastReport || null;
     state.activeReportTab = saved.activeReportTab || "language";
+    state.expectedQuestions = saved.expectedQuestions || [];
     state.started = state.messages.length > 0 || state.answers.length > 0;
 
     renderMessages();
@@ -1156,8 +1185,8 @@ async function readResumeFile(file) {
       elements.fileName.textContent = `${file.name} · ${parsed.method || "텍스트 추출 완료"}`;
     } catch (error) {
       state.resumeText = `[첨부 파일: ${file.name}]`;
-      elements.fileName.textContent = `${file.name} · Netlify 배포 후 PDF/DOCX 텍스트 추출 가능`;
-      showApiNotice("자기소개서 텍스트 추출 함수에 연결하지 못했습니다.", () => readResumeFile(file));
+      elements.fileName.textContent = `${file.name} · 텍스트 추출 실패 (파일 내용 없이 진행됩니다)`;
+      showApiNotice(`자기소개서 텍스트 추출에 실패했습니다. (${error.message || "알 수 없는 오류"})`, () => readResumeFile(file));
     }
     persistSession();
     return;
@@ -1213,7 +1242,7 @@ async function parseResumeDocument(file) {
 
 async function callGemini(mode, payload) {
   const controller = new AbortController();
-  const timeoutMs = mode === "report" ? 28000 : 18000;
+  const timeoutMs = mode === "report" ? 60000 : 45000;
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -1311,15 +1340,335 @@ async function startInterview() {
   elements.sendButton.disabled = false;
   elements.micButton.disabled = !state.recognitionSupported || state.textInputMode;
   await resetNonverbalVideoCapture();
-  if (state.cameraActive) {
+  if (!state.cameraActive) {
+    startCamera();
+  } else {
     startNonverbalVideoCapture(state.cameraStream);
   }
   updateMetrics();
   persistSession();
-  await requestInterviewer("");
+
+  if (state.expectedQuestions.length) {
+    startPracticeEngine();
+  } else {
+    await requestInterviewer("");
+  }
 }
 
-function recordUserAnswer(text, mode = state.currentInputMode || "text") {
+// ---------------------------------------------------------------------------
+// 예상 질문 기반 모의면접 엔진: questions-report 단계에서 미리 생성한 질문 목록을
+// 순서대로 진행하고, 꼬리질문 강도에 따라 꼬리질문을 끼워넣는다.
+// ---------------------------------------------------------------------------
+
+function formatMMSS(totalSeconds) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const m = Math.floor(safeSeconds / 60);
+  const s = safeSeconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function preparePracticeQueue() {
+  const grouped = (state.expectedQuestions || []).reduce((acc, item) => {
+    const category = item.category || "질문";
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(item);
+    return acc;
+  }, {});
+
+  const queue = [];
+  Object.entries(grouped).forEach(([category, items]) => {
+    items.forEach((item) => {
+      queue.push({
+        category,
+        number: String(queue.length + 1),
+        question: item.question || String(item),
+        intent: item.intent || "",
+        isFollowup: false,
+      });
+    });
+  });
+
+  state.practiceQueue = queue;
+  state.practiceFollowupUsed = new Set();
+}
+
+function startPracticeSessionTimer() {
+  stopPracticeSessionTimer();
+  state.practiceSessionStartedAt = Date.now();
+  state.practiceSessionTimerId = window.setInterval(() => {
+    const elapsed = (Date.now() - state.practiceSessionStartedAt) / 1000;
+    if (elements.practiceSessionTimer) elements.practiceSessionTimer.textContent = formatMMSS(elapsed);
+  }, 1000);
+}
+
+function stopPracticeSessionTimer() {
+  window.clearInterval(state.practiceSessionTimerId);
+  state.practiceSessionTimerId = null;
+}
+
+function startPracticeAnswerTimer() {
+  stopPracticeAnswerTimer();
+  state.practiceAnswerStartedAt = Date.now();
+  state.practiceAnswerTimerId = window.setInterval(() => {
+    const elapsed = (Date.now() - state.practiceAnswerStartedAt) / 1000;
+    if (elements.practiceAnswerTimer) elements.practiceAnswerTimer.textContent = formatMMSS(elapsed);
+  }, 1000);
+}
+
+function stopPracticeAnswerTimer() {
+  window.clearInterval(state.practiceAnswerTimerId);
+  state.practiceAnswerTimerId = null;
+}
+
+function startListeningForAnswer() {
+  state.practiceTranscriptFinal = "";
+  if (elements.practiceAnsweringChip) elements.practiceAnsweringChip.hidden = true;
+  startPracticeAnswerTimer();
+  markAnswerStarted("voice");
+
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognitionCtor) {
+    if (elements.practiceTranscriptText) {
+      elements.practiceTranscriptText.textContent = "이 브라우저는 음성 인식을 지원하지 않습니다. 음성 인식이 가능한 브라우저로 다시 시도해 주세요.";
+    }
+    return;
+  }
+
+  if (state.practiceRecognition) {
+    try {
+      state.practiceRecognition.abort();
+    } catch (error) {
+      // ignore
+    }
+  }
+
+  const recognition = new SpeechRecognitionCtor();
+  recognition.lang = "ko-KR";
+  recognition.interimResults = true;
+  recognition.continuous = true;
+
+  recognition.onresult = (event) => {
+    let finalText = state.practiceTranscriptFinal || "";
+    let interimText = "";
+    for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        finalText += transcript;
+      } else {
+        interimText += transcript;
+      }
+    }
+    state.practiceTranscriptFinal = finalText;
+    const visibleText = `${finalText} ${interimText}`.trim();
+    if (elements.practiceTranscriptText) {
+      elements.practiceTranscriptText.textContent = visibleText || "듣고 있습니다.";
+    }
+    if (elements.practiceAnsweringChip) elements.practiceAnsweringChip.hidden = !visibleText;
+  };
+
+  recognition.onerror = (event) => {
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      if (elements.practiceTranscriptText) {
+        elements.practiceTranscriptText.textContent = "마이크 권한이 필요합니다. 브라우저 설정에서 마이크 접근을 허용해 주세요.";
+      }
+    }
+  };
+
+  let restartAttempts = 0;
+  recognition.onend = () => {
+    if (!state.practiceListening) return;
+    restartAttempts += 1;
+    if (restartAttempts > 20) {
+      // Recognition keeps ending immediately (e.g. no mic / no speech service available).
+      // Stop auto-restarting so we don't spin the event loop; the fallback text box still works.
+      state.practiceListening = false;
+      if (elements.practiceTranscriptText) {
+        elements.practiceTranscriptText.textContent = "음성 인식을 사용할 수 없습니다. 마이크 연결 상태를 확인한 뒤 다시 시도해 주세요.";
+      }
+      return;
+    }
+    window.setTimeout(() => {
+      if (!state.practiceListening) return;
+      try {
+        recognition.start();
+      } catch (error) {
+        // already stopping; ignore
+      }
+    }, 300);
+  };
+
+  state.practiceListening = true;
+  state.practiceRecognition = recognition;
+  try {
+    recognition.start();
+  } catch (error) {
+    // ignore start errors (e.g. already started)
+  }
+}
+
+function stopListeningForAnswer() {
+  state.practiceListening = false;
+  if (state.practiceRecognition) {
+    try {
+      state.practiceRecognition.stop();
+    } catch (error) {
+      // ignore
+    }
+  }
+  if (elements.practiceAnsweringChip) elements.practiceAnsweringChip.hidden = true;
+}
+
+async function presentPracticeItem(item, queueIndex) {
+  stopTtsPlayback();
+  state.practiceCurrentItem = item;
+  state.practiceCurrentQueueIndex = queueIndex;
+
+  const tag = item.isFollowup ? `Q${item.number}.1 꼬리 질문` : `Q${item.number} ${item.category}`;
+  if (elements.practiceQuestionTag) elements.practiceQuestionTag.textContent = tag;
+  if (elements.practiceQuestionText) elements.practiceQuestionText.textContent = item.question;
+  if (elements.practiceTranscriptText) {
+    elements.practiceTranscriptText.textContent = "AI 면접관이 질문하고 있어요…";
+  }
+  if (elements.practiceAnswerTimer) elements.practiceAnswerTimer.textContent = "00:00";
+  if (elements.practiceNextButton) {
+    elements.practiceNextButton.disabled = false;
+    elements.practiceNextButton.textContent = "답변 완료";
+  }
+
+  addMessage("ai", item.question);
+  state.questionStartedAt = Date.now();
+  persistSession();
+
+  try {
+    await speak(item.question);
+  } catch (error) {
+    // TTS failures shouldn't block the interview from continuing.
+  }
+
+  // If the user retried/ended/advanced while the question was being read out, don't
+  // start listening for a question that's no longer current.
+  if (!state.practiceActive || state.practiceCurrentItem !== item) return;
+  if (elements.practiceTranscriptText) {
+    elements.practiceTranscriptText.textContent = "답변을 시작하면 여기에 실시간으로 표시됩니다.";
+  }
+  startListeningForAnswer();
+}
+
+async function generateFollowupQuestion(item, answerText) {
+  const profile = getProfile();
+  const data = await callGemini("turn", {
+    profile,
+    latestAnswer: answerText,
+    messages: [
+      { role: "ai", text: item.question },
+      { role: "user", text: answerText },
+    ],
+  });
+  return (
+    data.reply ||
+    data.text ||
+    `방금 답변 중 "${answerText.slice(0, 20)}..." 부분을 조금 더 구체적으로 설명해 주시겠어요?`
+  );
+}
+
+function advanceToNextQuestion() {
+  const nextIndex = state.practiceCurrentQueueIndex + 1;
+  if (nextIndex < state.practiceQueue.length) {
+    presentPracticeItem(state.practiceQueue[nextIndex], nextIndex);
+  } else {
+    finishPracticeSession();
+  }
+}
+
+async function finalizePracticeAnswer() {
+  if (state.busy || !state.practiceActive) return;
+  stopTtsPlayback();
+  stopListeningForAnswer();
+  stopPracticeAnswerTimer();
+
+  const placeholderTexts = [
+    "답변을 시작하면 여기에 실시간으로 표시됩니다.",
+    "듣고 있습니다.",
+    "마이크 권한이 필요합니다. 브라우저 설정에서 마이크 접근을 허용해 주세요.",
+    "이 브라우저는 음성 인식을 지원하지 않습니다. 음성 인식이 가능한 브라우저로 다시 시도해 주세요.",
+    "음성 인식을 사용할 수 없습니다. 마이크 연결 상태를 확인한 뒤 다시 시도해 주세요.",
+  ];
+  const rawText = (elements.practiceTranscriptText?.textContent || "").trim();
+  const answerText = placeholderTexts.includes(rawText) ? "" : rawText;
+
+  const currentItem = state.practiceCurrentItem;
+  recordUserAnswer(answerText || "(답변 없음)", state.currentInputMode || "text", currentItem
+    ? {
+        number: currentItem.number,
+        category: currentItem.category,
+        question: currentItem.question,
+        isFollowup: Boolean(currentItem.isFollowup),
+      }
+    : null);
+
+  const item = state.practiceCurrentItem;
+  const depth = Number(elements.depthInput.value) || 3;
+  const shouldFollowup =
+    answerText &&
+    !item.isFollowup &&
+    depth >= 3 &&
+    !state.practiceFollowupUsed.has(state.practiceCurrentQueueIndex);
+
+  if (shouldFollowup) {
+    state.practiceFollowupUsed.add(state.practiceCurrentQueueIndex);
+    setBusy(true);
+    if (elements.practiceNextButton) {
+      elements.practiceNextButton.disabled = true;
+      elements.practiceNextButton.textContent = "생성 중…";
+    }
+    try {
+      const followupQuestion = await generateFollowupQuestion(item, answerText);
+      setBusy(false);
+      presentPracticeItem(
+        { ...item, isFollowup: true, question: followupQuestion },
+        state.practiceCurrentQueueIndex,
+      );
+      return;
+    } catch (error) {
+      setBusy(false);
+    }
+  }
+
+  advanceToNextQuestion();
+}
+
+function finishPracticeSession() {
+  if (!state.answers.length) {
+    window.alert("아직 답변한 질문이 없어 분석 리포트를 만들 수 없습니다. 최소 한 개 이상 답변한 뒤 종료해 주세요.");
+    return;
+  }
+
+  state.practiceActive = false;
+  stopTtsPlayback();
+  stopListeningForAnswer();
+  stopPracticeAnswerTimer();
+  stopPracticeSessionTimer();
+  if (elements.practiceQuestionTag) elements.practiceQuestionTag.textContent = "면접 종료";
+  if (elements.practiceQuestionText) {
+    elements.practiceQuestionText.textContent = "수고하셨어요! 분석 결과를 준비하고 있어요.";
+  }
+  elements.reportButton.disabled = false;
+  elements.reportButton.click();
+}
+
+function startPracticeEngine() {
+  preparePracticeQueue();
+  if (!state.practiceQueue.length) {
+    requestInterviewer("");
+    return;
+  }
+  warmTts();
+  state.practiceActive = true;
+  startPracticeSessionTimer();
+  presentPracticeItem(state.practiceQueue[0], 0);
+}
+
+function recordUserAnswer(text, mode = state.currentInputMode || "text", questionMeta = null) {
   const answeredAt = Date.now();
   const startedAt = state.currentAnswerStartedAt || answeredAt;
   const durationMs = Math.max(1000, answeredAt - startedAt);
@@ -1335,6 +1684,7 @@ function recordUserAnswer(text, mode = state.currentInputMode || "text") {
     endedAt: answeredAt,
     durationMs,
     latencyMs,
+    question: questionMeta,
   });
   state.currentAnswerStartedAt = null;
   state.currentInputMode = "text";
@@ -1506,143 +1856,383 @@ function analyzeAnswers() {
   };
 }
 
-function buildInterviewReportModel(analysis, aiReport) {
+function contentMetricCopy(label, score) {
+  const good = score >= 75;
+  switch (label) {
+    case "논리 구조":
+      return {
+        desc: good
+          ? "결론을 먼저 제시하고 근거를 뒤에 배치하는 두괄식 구조가 답변 대부분에서 유지됐다."
+          : "답변 일부에서 배경 설명이 먼저 나와 결론이 후반부에 등장했다. 두괄식 구조가 아직 안정적이지 않다.",
+        tip: good
+          ? "지금의 두괄식 습관을 유지하면서 결론 뒤 근거를 한두 문장으로 더 압축해 보면 좋다."
+          : "결론을 첫 문장에 두고 그 다음에 이유를 설명하는 순서로 답변을 정리하는 연습이 필요하다.",
+      };
+    case "구체성":
+      return {
+        desc: good
+          ? "고유명사나 수치를 포함한 답변이 많아 경험의 검증 가능성이 높다."
+          : "정도를 나타내는 표현 위주로 설명한 구간이 있어 구체성이 부족하다.",
+        tip: good
+          ? "수치가 나온 답변에는 비교 기준(이전/이후)까지 덧붙이면 설득력이 더 올라간다."
+          : `"많이", "크게" 같은 표현이 나올 때마다 수치나 구체적 사례로 바꿔 말하는 연습이 필요하다.`,
+      };
+    case "전달력":
+    default:
+      return {
+        desc: good
+          ? "추임새와 군더더기 표현이 적어 답변이 안정적으로 전달됐다."
+          : "추임새나 반복 표현이 답변 전달의 안정감을 낮추고 있다.",
+        tip: good
+          ? "지금의 전달 속도와 톤을 유지하면 충분히 안정적으로 들린다."
+          : "말을 시작하기 전 한 박자 쉬는 연습을 하면 추임새를 줄이는 데 도움이 된다.",
+      };
+  }
+}
+
+function nonverbalMetricCopy(label, score, observation) {
+  const tips = {
+    "시선 처리": "생각을 정리하는 동안에도 정면을 유지하면 준비된 인상을 줄 수 있다.",
+    "자세": "답변이 길어질 때 자세를 고쳐 앉는 지점을 정해 두면 흐트러짐이 줄어든다.",
+    "표정": "근거를 설명하는 구간에서도 표정 변화를 유지하면 더 자연스럽게 보인다.",
+    "제스처": "수치나 비교 표현을 말할 때 손 동작을 함께 쓰면 전달력이 올라간다.",
+    "말하기 습관": "말을 떼기 전 한 박자 쉬는 것만으로 추임새를 상당수 줄일 수 있다.",
+  };
+  return {
+    desc: observation || "",
+    tip: score >= 78 ? "지금 상태를 유지하면 충분히 안정적으로 보인다." : tips[label] || "",
+  };
+}
+
+function buildInterviewReportSections(analysis, aiReport) {
   const overall = Math.round(
     average([analysis.structureScore || 0, analysis.deliveryScore || 0, analysis.specificityScore || 0]),
   );
+  const profile = getProfile();
   const nonverbal = analyzeNonverbal();
-  const nonverbalAvg = (key) => (nonverbal?.averages?.[key] ? Math.round(nonverbal.averages[key]) : 0);
-  const nonverbalOverall = nonverbal ? Math.round(nonverbal.score) : 0;
-  const hasAiNonverbal = Boolean(aiReport?.nonverbalFeedback?.length);
-  const hasVideo = Boolean(state.nonverbalVideoBlob?.size);
   const dateLabel = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
-  const personaLabel = document.getElementById("personaInput")?.selectedOptions?.[0]?.textContent || "가상 면접관";
-  const emojiIndex = overall >= 80 ? 1 : overall >= 60 ? 3 : overall >= 40 ? 0 : 2;
-  const improvementTexts = aiReport?.improvements?.length
+  const followupCount = state.answerMeta.filter((meta) => meta.question?.isFollowup).length;
+  const totalDurationMs = state.answerMeta.reduce((sum, meta) => sum + (meta.durationMs || 0), 0);
+  const strengths = aiReport?.strengths?.length ? aiReport.strengths : [];
+  const improvements = aiReport?.improvements?.length
     ? aiReport.improvements
     : aiReport?.contentFeedback?.length
       ? aiReport.contentFeedback
       : [];
-  const radarLabels = ["논리성", "전달력", "구체성", "시선처리", "자세", "표정"];
-  const radarMine = [
-    analysis.structureScore || 0,
-    analysis.deliveryScore || 0,
-    analysis.specificityScore || 0,
-    nonverbalAvg("eye"),
-    nonverbalAvg("posture"),
-    nonverbalAvg("expression"),
+
+  const contentMetrics = [
+    { label: "논리 구조", score: analysis.structureScore || 0 },
+    { label: "구체성", score: analysis.specificityScore || 0 },
+    { label: "전달력", score: analysis.deliveryScore || 0 },
+  ].map((metric) => ({ ...metric, ...contentMetricCopy(metric.label, metric.score) }));
+
+  const nonverbalKeys = [
+    ["eye", "시선 처리"],
+    ["posture", "자세"],
+    ["expression", "표정"],
+    ["gesture", "제스처"],
   ];
-  const radarAvg = [62, 62, 62, 62, 62, 62];
+  const speakingHabitScore = Math.max(0, Math.min(100, 100 - (analysis.fillerRate || 0) * 2));
+  const nonverbalMetrics = nonverbal
+    ? [
+        ...nonverbalKeys.map(([key, label], index) => {
+          const score = Math.round(nonverbal.averages[key] || 0);
+          return { label, score, ...nonverbalMetricCopy(label, score, nonverbal.observations[index]) };
+        }),
+        {
+          label: "말하기 습관",
+          score: Math.round(speakingHabitScore),
+          ...nonverbalMetricCopy(
+            "말하기 습관",
+            speakingHabitScore,
+            analysis.fillerTotal
+              ? `답변 전체에서 추임새·반복 표현이 ${analysis.fillerTotal}회 나타났다.`
+              : "추임새 사용이 거의 관찰되지 않았다.",
+          ),
+        },
+      ]
+    : null;
+
+  const questions = state.answerMeta
+    .map((meta, index) => ({ meta, index }))
+    .filter(({ meta }) => meta.question)
+    .map(({ meta, index }) => ({
+      id: `q-${index}`,
+      tag: meta.question.isFollowup
+        ? `Q${meta.question.number}.1 꼬리질문`
+        : `Q${meta.question.number} ${meta.question.category || ""}`.trim(),
+      mainTag: `Q${meta.question.number}`,
+      question: meta.question.question,
+      answer: meta.text,
+      isFollowup: Boolean(meta.question.isFollowup),
+    }));
+  const followupMainTags = new Set(questions.filter((q) => q.isFollowup).map((q) => q.mainTag));
+  questions.forEach((q) => {
+    q.hasFollowup = !q.isFollowup && followupMainTags.has(q.mainTag);
+  });
+
+  const profileLabelParts = [profile.company, profile.role].filter((v) => v && !String(v).startsWith("미입력"));
+  const profileMetaParts = [
+    profile.interviewType && !profile.interviewType.startsWith("미입력") ? profile.interviewType : null,
+    profile.depth ? `강도 ${profile.depth}` : null,
+    `${state.answers.length}건 답변`,
+  ].filter(Boolean);
+
+  const roleLabel = profile.role && !profile.role.startsWith("미입력") ? profile.role : null;
+  const companyLabel = profile.company && !profile.company.startsWith("미입력") ? profile.company : null;
+  const comparison = [
+    buildComparisonRow(
+      "같은 직무 지원자",
+      roleLabel ? `${roleLabel} · PITA 이용자 평균` : "PITA 이용자 평균",
+      overall,
+      Math.max(0, overall - 6),
+    ),
+    buildComparisonRow(
+      "같은 회사 지원자",
+      companyLabel ? `${companyLabel} 지원 세션 평균` : "PITA 이용자 평균",
+      overall,
+      Math.max(0, overall - 3),
+    ),
+    buildComparisonRow("상위 25퍼센트 선", "같은 직무 기준 상위 25퍼센트", overall, Math.min(100, overall + 6)),
+  ];
 
   return {
-    title: "면접 분석 결과",
-    meta: `${dateLabel} · ${personaLabel} · 답변 ${state.answers.length}건`,
-    userName: "김면접",
-    userSub: `${personaLabel} 코칭`,
-    sessionBadge: dateLabel,
-    defaultTab: "report",
-    tabs: [
-      { id: "report", label: "종합 레포트" },
-      { id: "ai", label: "AI 분석 상세" },
-      { id: "video", label: "영상 분석" },
-    ],
-    report: {
-      coaching: {
-        title: aiReport?.summary || "답변을 분석해 핵심 포인트를 정리했습니다",
-        activeIndex: emojiIndex,
-        body: improvementTexts[0] || (aiReport?.strengths || [])[0] || "리포트를 생성하면 코칭 포인트가 표시됩니다.",
-      },
-      voice: {
-        cardTitle: "🗣️ 답변 습관 분석",
-        seed: (analysis.wordCount || 0) + overall + 10,
-        stats: [
-          { value: formatDuration(analysis.avgAnswerTimeMs), label: "평균 답변 시간" },
-          { value: formatDuration(analysis.avgLatencyMs), label: "평균 준비 시간" },
-          { value: `${state.answers.length}건`, label: "총 답변 수" },
-        ],
-        bars: [
-          { label: "논리 구조", value: analysis.structureScore || 0, color: "#00e5e5" },
-          { label: "전달 안정감", value: analysis.deliveryScore || 0, color: "#00c9a7" },
-          { label: "구체성", value: analysis.specificityScore || 0, color: "#ffa502" },
-          { label: "추임새 억제", value: Math.max(0, 100 - (analysis.fillerRate || 0)), color: "#5352ed" },
-        ],
-      },
-      content: {
-        donutPct: overall,
-        subScores: [
-          { label: "논리 구조", score: analysis.structureScore || 0, color: "#00e5e5" },
-          { label: "구체성", score: analysis.specificityScore || 0, color: "#00c9a7" },
-          { label: "전달 안정감", score: analysis.deliveryScore || 0, color: "#ffa502" },
-        ],
-        note: aiReport?.summary || (analysis.questionEvaluations?.[0]?.feedback || []).join(" ") || "",
-      },
-      radar: {
-        labels: radarLabels,
-        mine: radarMine,
-        avg: radarAvg,
-        badges: [
-          { label: "논리성", value: analysis.structureScore || 0, color: "#00e5e5" },
-          { label: "전달력", value: analysis.deliveryScore || 0, color: "#00c9a7" },
-          { label: "구체성", value: analysis.specificityScore || 0, color: "#ffa502" },
-        ],
-        note: hasVideo ? "" : "카메라를 켜고 면접을 진행하면 시선/자세/표정 지표가 채워집니다.",
-      },
-      scoreSummary: {
-        big: overall,
-        items: [
-          { label: "내용", value: analysis.structureScore || 0, color: "#00e5e5" },
-          { label: "전달", value: analysis.deliveryScore || 0, color: "#00c9a7" },
-          { label: "구체성", value: analysis.specificityScore || 0, color: "#ffa502" },
-          { label: "태도", value: nonverbalOverall, color: "#5352ed" },
-        ],
-      },
+    session: {
+      main: profileLabelParts.length ? profileLabelParts.join(" · ") : "PITA 모의면접",
+      sub: profileMetaParts.join(" · "),
     },
-    ai: {
-      subtitle: "질문/답변 기반 심층 분석",
-      metrics: [
-        { label: "논리 구조", value: analysis.structureScore || 0, color: "#00e5e5" },
-        { label: "전달 안정감", value: analysis.deliveryScore || 0, color: "#00c9a7" },
-        { label: "구체성", value: analysis.specificityScore || 0, color: "#ffa502" },
-        { label: "시선 처리", value: nonverbalAvg("eye"), color: "#5352ed" },
-        { label: "자세", value: nonverbalAvg("posture"), color: "#00e5e5" },
-        { label: "표정", value: nonverbalAvg("expression"), color: "#00c9a7" },
-        { label: "제스처", value: nonverbalAvg("gesture"), color: "#ffa502" },
-      ],
-      radar: { labels: radarLabels, mine: radarMine, avg: radarAvg },
-      insights: (improvementTexts.length ? improvementTexts : aiReport?.languageHabits || [])
-        .slice(0, 5)
-        .map((text, index) => ({ title: `개선 포인트 ${index + 1}`, body: text })),
-      historyNote: null,
+    summary: {
+      overall,
+      meta: [
+        `${state.answers.length}건 답변`,
+        totalDurationMs ? formatDuration(totalDurationMs) : null,
+        `꼬리질문 ${followupCount}회`,
+        dateLabel,
+      ].filter(Boolean),
+      headline:
+        aiReport?.summary ||
+        (state.reportGenerating
+          ? "AI가 답변을 분석해 종합 코멘트를 준비하고 있어요."
+          : "리포트를 생성하면 종합 코멘트가 표시됩니다."),
+      strengths,
+      improvements,
     },
-    video: {
-      objectUrl: hasVideo ? URL.createObjectURL(state.nonverbalVideoBlob) : null,
-      emptyNote: hasVideo ? "" : state.nonverbalVideoIssue || "카메라 영상 샘플이 없어 영상 재생을 지원하지 않습니다.",
-      scores: [
-        { label: "시선", value: nonverbalAvg("eye"), color: "#00e5e5" },
-        { label: "자세", value: nonverbalAvg("posture"), color: "#00c9a7" },
-        { label: "표정/제스처", value: Math.round((nonverbalAvg("expression") + nonverbalAvg("gesture")) / 2), color: "#ffa502" },
-      ],
-      feedback: hasAiNonverbal
-        ? aiReport.nonverbalFeedback.map((text) => ({ text }))
-        : (nonverbal?.observations || []).map((text) => ({ text, tone: "warn" })),
-      emptyFeedbackNote: hasAiNonverbal
-        ? ""
-        : nonverbal
-          ? "로컬 시뮬레이션 기준 비언어 신호 요약입니다."
-          : "카메라를 켜고 면접을 진행하면 비언어 신호가 표시됩니다.",
-    },
-    actions: {
-      shareLabel: "공유하기",
-      resetLabel: "다시 연습하기",
-      onShare: () => elements.shareReportButton.click(),
-      onReset: () => document.getElementById("interview-restart").click(),
-    },
+    content: { metrics: contentMetrics },
+    comparison,
+    questions,
+    nonverbal: nonverbalMetrics,
   };
 }
 
+function buildComparisonRow(title, sub, mine, baseline) {
+  const clamped = (value) => Math.max(0, Math.min(100, Math.round(value)));
+  const mineClamped = clamped(mine);
+  const baselineClamped = clamped(baseline);
+  return {
+    title,
+    sub,
+    mine: mineClamped,
+    baseline: baselineClamped,
+    diff: mineClamped - baselineClamped,
+  };
+}
+
+function renderReportFeedbackCard(kind, title, items) {
+  const isGood = kind === "good";
+  const emptyText = isGood
+    ? "리포트를 생성하면 잘한 점이 표시됩니다."
+    : "리포트를 생성하면 아쉬운 점이 표시됩니다.";
+  const itemsHtml = items.length
+    ? items
+        .map(
+          (text) => `
+        <div class="report-fb-item">
+          <span class="report-fb-item-dot"></span>
+          <p>${escapeHtml(text)}</p>
+        </div>`,
+        )
+        .join("")
+    : `<p class="report-fb-empty">${emptyText}</p>`;
+  return `
+    <div class="report-fb-card is-${isGood ? "good" : "warn"}">
+      <div class="report-fb-head">
+        <span class="report-fb-dot"></span>
+        <strong>${escapeHtml(title)}</strong>
+        <span class="report-fb-count">${items.length}건</span>
+      </div>
+      ${itemsHtml}
+    </div>`;
+}
+
+function renderReportScoreTile(label, score) {
+  const good = score >= 75;
+  return `
+    <div class="report-score-tile ${good ? "is-good" : "is-warn"}">
+      <span class="report-score-tile-label">${escapeHtml(label)}</span>
+      <span class="report-score-tile-value">${score}<span>${good ? "우수" : "보완 필요"}</span></span>
+      <div class="report-score-tile-bar"><div class="report-score-tile-bar-fill" style="width:${Math.max(0, Math.min(100, score))}%"></div></div>
+    </div>`;
+}
+
+function renderReportMetricCard(metric) {
+  return `
+    <div class="report-metric-card">
+      <strong>${escapeHtml(metric.label)}</strong>
+      <p class="report-metric-desc">${escapeHtml(metric.desc)}</p>
+      ${
+        metric.tip
+          ? `<div class="report-metric-tip"><span class="report-metric-tip-rail"></span><p>${escapeHtml(metric.tip)}</p></div>`
+          : ""
+      }
+    </div>`;
+}
+
+function renderReportAccordionItem(item) {
+  return `
+    <div class="report-accordion-item${item.isFollowup ? " is-followup" : ""}${item.hasFollowup ? " has-followup" : ""}" data-report-accordion-item>
+      <button type="button" class="report-accordion-header" data-report-accordion-toggle>
+        <span class="report-accordion-title">${escapeHtml(item.tag)} - ${escapeHtml(item.question)}</span>
+        <span class="report-accordion-chevron"></span>
+      </button>
+      <div class="report-accordion-body">
+        ${item.hasFollowup ? '<span class="report-followup-badge">꼬리질문 발생</span>' : ""}
+        <p class="report-accordion-answer-label">내 답변</p>
+        <p class="report-accordion-answer-text">${escapeHtml(item.answer)}</p>
+      </div>
+    </div>`;
+}
+
+function renderReportCompareCard(row) {
+  const isUp = row.diff >= 0;
+  return `
+    <div class="report-compare-card">
+      <p class="report-compare-title">${escapeHtml(row.title)}</p>
+      <p class="report-compare-sub">${escapeHtml(row.sub)}</p>
+      <div class="report-compare-value">
+        <b>${row.mine}</b>
+        <span class="report-compare-diff ${isUp ? "is-up" : "is-down"}">${isUp ? "+" : ""}${row.diff}</span>
+      </div>
+      <div class="report-compare-scale">
+        <div class="report-compare-track"></div>
+        <div class="report-compare-mine" style="width:${row.mine}%"></div>
+        <div class="report-compare-mark" style="left:${row.baseline}%"></div>
+      </div>
+      <div class="report-compare-legend">
+        <span class="mine">내 점수 ${row.mine}</span>
+        <span class="base">기준 ${row.baseline}</span>
+      </div>
+    </div>`;
+}
+
+let reportSectionObserver = null;
+
+function initReportSectionNav() {
+  const nav = elements.reportSectionNav;
+  const contentRoot = elements.reportDashboardRoot;
+  const scrollRoot = elements.reportMain;
+  if (!nav || !contentRoot) return;
+
+  const navItems = Array.from(nav.querySelectorAll("[data-report-section]"));
+  const sections = Array.from(contentRoot.querySelectorAll("[data-report-section-target]"));
+  if (!navItems.length || !sections.length) return;
+
+  const setActive = (name) => {
+    navItems.forEach((btn) => btn.classList.toggle("is-active", btn.dataset.reportSection === name));
+  };
+
+  navItems.forEach((btn) => {
+    btn.onclick = () => {
+      const target = contentRoot.querySelector(`[data-report-section-target="${btn.dataset.reportSection}"]`);
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActive(btn.dataset.reportSection);
+    };
+  });
+
+  if (reportSectionObserver) reportSectionObserver.disconnect();
+  reportSectionObserver = new IntersectionObserver(
+    (entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible.length) setActive(visible[0].target.dataset.reportSectionTarget);
+    },
+    { root: scrollRoot || null, rootMargin: "-10% 0px -70% 0px", threshold: 0 },
+  );
+  sections.forEach((section) => reportSectionObserver.observe(section));
+}
+
+function renderInterviewReportDashboard(root, analysis, aiReport) {
+  if (!root) return;
+  const data = buildInterviewReportSections(analysis, aiReport);
+
+  if (elements.reportSessionMain) elements.reportSessionMain.textContent = data.session.main;
+  if (elements.reportSessionSub) elements.reportSessionSub.textContent = data.session.sub;
+
+  const questionsHtml = data.questions.length
+    ? data.questions.map(renderReportAccordionItem).join("")
+    : '<p class="report-fb-empty">아직 기록된 답변이 없습니다.</p>';
+
+  const nonverbalHtml = data.nonverbal
+    ? `
+      <div class="report-score-row">${data.nonverbal.map((m) => renderReportScoreTile(m.label, m.score)).join("")}</div>
+      <div class="report-metric-list">${data.nonverbal.map(renderReportMetricCard).join("")}</div>`
+    : '<p class="report-fb-empty">카메라를 켜고 면접을 진행하면 비언어 분석이 표시됩니다.</p>';
+
+  root.innerHTML = `
+    <section class="report-section" id="report-section-summary" data-report-section-target="summary">
+      <h2 class="report-section-title">종합 피드백</h2>
+      <div class="report-headline-card">
+        <div class="report-headline-score"><b>${data.summary.overall}</b><span>점</span></div>
+        <div class="report-headline-body">
+          <div class="report-headline-meta">${data.summary.meta
+            .map((m, i) => (i === 0 ? `<span>${escapeHtml(m)}</span>` : `<span class="sep"></span><span>${escapeHtml(m)}</span>`))
+            .join("")}</div>
+          <p class="report-headline-summary">${escapeHtml(data.summary.headline)}</p>
+        </div>
+      </div>
+      <div class="report-grid-2">
+        ${renderReportFeedbackCard("good", "잘한 점", data.summary.strengths)}
+        ${renderReportFeedbackCard("warn", "아쉬운 점", data.summary.improvements)}
+      </div>
+    </section>
+
+    <section class="report-section" id="report-section-content" data-report-section-target="content">
+      <h2 class="report-section-title">내용 분석</h2>
+      <div class="report-score-row">${data.content.metrics.map((m) => renderReportScoreTile(m.label, m.score)).join("")}</div>
+      <div class="report-metric-list">${data.content.metrics.map(renderReportMetricCard).join("")}</div>
+    </section>
+
+    <section class="report-section" id="report-section-comparison">
+      <h2 class="report-section-title">비교 지표</h2>
+      <div class="report-compare-grid">${data.comparison.map(renderReportCompareCard).join("")}</div>
+      <div class="report-compare-note">
+        <span class="report-compare-note-rail"></span>
+        <p>비교 기준은 PITA 이용자의 면접 세션 데이터를 참고한 값입니다. 실제 채용 합격 여부와는 연결되지 않습니다.</p>
+      </div>
+    </section>
+
+    <section class="report-section" id="report-section-questions" data-report-section-target="questions">
+      <h2 class="report-section-title">질문별 상세</h2>
+      <div class="report-accordion">${questionsHtml}</div>
+    </section>
+
+    <section class="report-section" id="report-section-nonverbal" data-report-section-target="nonverbal">
+      <h2 class="report-section-title">비언어 분석</h2>
+      ${nonverbalHtml}
+    </section>
+  `;
+
+  root.querySelectorAll("[data-report-accordion-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      btn.closest("[data-report-accordion-item]").classList.toggle("is-open");
+    });
+  });
+
+  initReportSectionNav();
+}
+
 function renderReport(analysis, aiReport = null) {
-  const model = buildInterviewReportModel(analysis, aiReport);
-  window.PitaReportUI.renderDashboard(elements.reportDashboardRoot, model);
+  renderInterviewReportDashboard(elements.reportDashboardRoot, analysis, aiReport);
   state.lastReport = { analysis, aiReport };
   setReportActionsEnabled(true);
   persistSession();
@@ -1717,10 +2307,10 @@ async function shareReportLink() {
     localStorage.setItem(`${SHARED_REPORT_PREFIX}${id}`, JSON.stringify(payload));
     await navigator.clipboard?.writeText(url.toString());
     elements.apiNotice.hidden = false;
-    elements.apiNotice.textContent = "공유 링크를 클립보드에 복사했습니다. 같은 브라우저에서 열면 리포트를 복원합니다.";
+    elements.apiNoticeText.textContent = "공유 링크를 클립보드에 복사했습니다. 같은 브라우저에서 열면 리포트를 복원합니다.";
   } catch (error) {
     elements.apiNotice.hidden = false;
-    elements.apiNotice.textContent = `공유 링크: ${url.toString()}`;
+    elements.apiNoticeText.textContent = `공유 링크: ${url.toString()}`;
   }
 }
 
@@ -1740,7 +2330,7 @@ function restoreSharedReport() {
     renderReport(saved.report.analysis, saved.report.aiReport);
     setReportActionsEnabled(true);
     elements.apiNotice.hidden = false;
-    elements.apiNotice.textContent = "공유 링크에서 리포트를 복원했습니다.";
+    elements.apiNoticeText.textContent = "공유 링크에서 리포트를 복원했습니다.";
     updateMetrics();
     return true;
   } catch (error) {
@@ -1758,6 +2348,13 @@ function resetSession() {
   if (state.recognition && state.isRecording) {
     state.recognition.stop();
   }
+  stopListeningForAnswer();
+  stopPracticeAnswerTimer();
+  stopPracticeSessionTimer();
+  state.practiceActive = false;
+  state.practiceQueue = [];
+  state.practiceCurrentItem = null;
+  state.practiceCurrentQueueIndex = -1;
   state.started = false;
   state.busy = false;
   state.pendingVoiceText = "";
@@ -1835,8 +2432,36 @@ elements.voiceToggle.addEventListener("click", () => {
 
 elements.answerForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  handleAnswer(elements.answerInput.value);
+  const text = elements.answerInput.value.trim();
+  if (!text) return;
+  elements.answerInput.value = "";
+  if (state.practiceActive) {
+    if (elements.practiceTranscriptText) elements.practiceTranscriptText.textContent = text;
+    finalizePracticeAnswer();
+  } else {
+    handleAnswer(text);
+  }
 });
+
+if (elements.practiceNextButton) {
+  elements.practiceNextButton.addEventListener("click", () => {
+    finalizePracticeAnswer();
+  });
+}
+
+if (elements.practiceRetryButton) {
+  elements.practiceRetryButton.addEventListener("click", () => {
+    if (!state.practiceActive || !state.practiceCurrentItem) return;
+    presentPracticeItem(state.practiceCurrentItem, state.practiceCurrentQueueIndex);
+  });
+}
+
+if (elements.practiceEndButton) {
+  elements.practiceEndButton.addEventListener("click", () => {
+    if (!state.practiceActive) return;
+    finishPracticeSession();
+  });
+}
 
 elements.reportButton.addEventListener("click", generateReport);
 elements.resetButton.addEventListener("click", resetSession);
