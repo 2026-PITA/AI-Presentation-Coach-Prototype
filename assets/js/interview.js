@@ -1983,26 +1983,51 @@ function buildInterviewReportSections(analysis, aiReport) {
   const formatShortDate = (date) =>
     `${date.getFullYear()}. ${String(date.getMonth() + 1).padStart(2, "0")}. ${String(date.getDate()).padStart(2, "0")}`;
   const now = new Date();
-  const session1Date = new Date(now.getTime() - 13 * 24 * 60 * 60 * 1000);
-  const session2Date = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+
   // NOTE: there's no session-history storage yet, so these past-session rows
-  // are illustrative placeholders (deterministic offsets from the current
-  // score) rather than real past sessions. Swap in real stored history once
-  // that exists.
+  // are illustrative placeholders rather than real past sessions. A small
+  // seeded PRNG (keyed off stable profile details, not the random clock) is
+  // used so the numbers vary session-to-session instead of always landing on
+  // the same fixed offsets, while staying reproducible if this report is
+  // re-rendered for the same session. Swap in real stored history once that
+  // exists.
+  const seedSource = `${profile.company}|${profile.role}|${profile.depth}|${state.answers.length}`;
+  let seed = 0;
+  for (let i = 0; i < seedSource.length; i += 1) {
+    seed = (seed * 31 + seedSource.charCodeAt(i)) >>> 0;
+  }
+  const seededRandom = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 0xffffffff;
+  };
+
+  const session1Date = new Date(now.getTime() - (10 + Math.round(seededRandom() * 10)) * 24 * 60 * 60 * 1000);
+  const session2Date = new Date(now.getTime() - (3 + Math.round(seededRandom() * 5)) * 24 * 60 * 60 * 1000);
+  const gap1 = 6 + Math.round(seededRandom() * 12); // 1회차: 6~18점 낮았음
+  const gap2 = 1 + Math.round(seededRandom() * 8); // 2회차: 1~9점 낮았음 (더 최근이라 격차가 작은 편)
+  const session1Score = Math.max(30, overall - gap1);
+  const session2Score = Math.max(session1Score + 1, overall - gap2);
+  // 60% 확률로 이번 세션이 개인 최고 기록, 아니면 과거에 1~5점 더 높았던 적이 있는 걸로.
+  const bestIsCurrent = seededRandom() < 0.6;
+  const bestScore = bestIsCurrent ? overall : Math.min(100, overall + 1 + Math.round(seededRandom() * 4));
+
   const comparison = [
     buildComparisonRow(
       "1회차 대비",
       `${formatShortDate(session1Date)} · ${interviewTypeLabel}`,
       overall,
-      Math.max(0, overall - 9),
+      session1Score,
     ),
     buildComparisonRow(
       "2회차 대비",
       `${formatShortDate(session2Date)} · ${interviewTypeLabel}`,
       overall,
-      Math.max(0, overall - 5),
+      session2Score,
     ),
-    buildComparisonRow("내 최고 기록", "3회 중 최고 점수", overall, overall, { diffLabel: "최고" }),
+    buildComparisonRow("내 최고 기록", "3회 중 최고 점수", overall, bestScore, {
+      diffLabel: bestIsCurrent ? "최고" : null,
+      baselineLabel: "최고",
+    }),
   ];
 
   const nextActions = (improvements.length ? improvements : strengths)
@@ -2064,6 +2089,7 @@ function buildComparisonRow(title, sub, mine, baseline, options = {}) {
     baseline: baselineClamped,
     diff: mineClamped - baselineClamped,
     diffLabel: options.diffLabel || null,
+    baselineLabel: options.baselineLabel || title.replace(" 대비", ""),
   };
 }
 
@@ -2152,7 +2178,7 @@ function renderReportCompareCard(row) {
       </div>
       <div class="report-compare-legend">
         <span class="mine">이번 ${row.mine}</span>
-        <span class="base">${row.diffLabel ? "최고" : row.title.replace(" 대비", "")} ${row.baseline}</span>
+        <span class="base">${escapeHtml(row.baselineLabel)} ${row.baseline}</span>
       </div>
     </div>`;
 }
